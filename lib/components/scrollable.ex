@@ -4,9 +4,14 @@ defmodule Scenic.Scrollable do
   import Scenic.Primitives, only: [group: 3, rect: 3]
 
   alias Scenic.Graph
+  alias Scenic.ViewPort
+  alias Scenic.Math.Vector2
+  alias Scenic.Scrollable.Hotkeys
+  alias Scenic.Scrollable.Drag
+  alias Scenic.Scrollable.ScrollBar
+  alias Scenic.Scrollable.Acceleration
 
-  # {x, y}
-  @type vector2 :: {number, number}
+  @type vector2 :: Scenic.Math.vector_2()
 
   @type rect :: %{
           x: number,
@@ -15,41 +20,23 @@ defmodule Scenic.Scrollable do
           height: number
         }
 
-  @type hotkeys :: %{
-          up: :none | {:some, number},
-          down: :none | {:some, number},
-          left: :none | {:some, number},
-          right: :none | {:some, number}
-        }
-
   @type style ::
           {:scroll_position, vector2}
           | {:scroll_acceleration, number | vector2}
           | {:scroll_speed, number | vector2}
-          | {:scroll_hotkeys, hotkeys}
+          | {:scroll_hotkeys, Hotkeys.t()}
           | {:scroll_fps, number}
           | {:scroll_counter_pressure, number | vector2}
+          | {:scroll_drag_settings, Drag.drag_settings()}
   # TODO bounce
 
   @type styles :: [style]
 
   @type scroll_state ::
           :scrolling
+          | :dragging
           | :cooling_down
           | :idle
-
-  @type drag_state :: %{
-          starting_point: :none | {:some, vector2},
-          last_point: :none | {:some, vector2},
-          original_content_position: vector2
-        }
-
-  @type acceleration_state :: %{
-          acceleration: vector2,
-          current_speed: vector2,
-          max_speed: vector2,
-          counter_pressure: vector2
-        }
 
   @type builder :: (Graph.t() -> Graph.t())
 
@@ -60,9 +47,12 @@ defmodule Scenic.Scrollable do
           scroll_position: vector2,
           fps: number,
           scrolling: scroll_state,
-          drag_state: drag_state,
-          acceleration_state: acceleration_state,
-          hotkeys: hotkeys
+          drag_state: Drag.t(),
+          scrollbar: ScrollBar.t(),
+          acceleration: Acceleration.t(),
+          hotkeys: Hotkeys.t(),
+          focused: boolean,
+          animating: boolean
         }
 
   @type t :: %Scenic.Scrollable{
@@ -73,22 +63,9 @@ defmodule Scenic.Scrollable do
   defstruct frame: {0, 0},
             content: {0, 0}
 
-  @default_acceleration {1, 1}
-
-  @default_scroll_speed {5, 5}
-
   @default_scroll_position {0, 0}
 
   @default_fps 30
-
-  @default_counter_pressure {2, 2}
-
-  @default_hotkeys %{
-    up: :none,
-    down: :none,
-    left: :none,
-    right: :none
-  }
 
   @impl Scenic.Component
   def verify(%{content: %{width: content_width, height: content_height, x: x, y: y}} = input)
@@ -140,105 +117,65 @@ defmodule Scenic.Scrollable do
       content: content,
       scroll_position: {scroll_x, scroll_y},
       fps: styles[:fps] || @default_fps,
-      scrolling: false,
-      acceleration_state: %{
-        acceleration: parse_scroll_acceleration(styles[:scroll_acceleration]),
-        current_speed: {0, 0},
-        max_speed: parse_scroll_speed(styles[:scroll_speed]),
-        counter_pressure: parse_scroll_counter_pressure(styles[:counter_pressure])
-      },
-      hotkeys: styles[:hotkeys] || @default_hotkeys
+      animating: false,
+      scrolling: :idle,
+      acceleration: Acceleration.init(styles[:scroll_acceleration_settings]),
+      hotkeys: Hotkeys.init(styles[:scroll_hotkeys]),
+      drag_state: Drag.init(styles[:scroll_drag_settings]),
+      scrollbar: ScrollBar.init(:todo),
+      focused: false
     }
-    |> reset_drag_state
     |> ResultEx.return()
   end
 
-  @impl Scenic.Scene
-  def handle_input(
-        {:cursor_button, {:left, :press, _, {x, y}}},
-        _,
-        %{graph: _, drag_state: _} = state
-      ) do
+  defp update(state) do
     state
-    |> expand_input_capture_range
-    |> update_drag_state({x, y})
-    |> get_and_push_graph
-    |> (&{:noreply, &1}).()
-  end
-
-  def handle_input({:cursor_pos, {x, y}}, _, %{drag_state: %{starting_point: {:some, _}}} = state) do
-    state
-    |> update_drag_state({x, y})
-    |> calculate_drag_offset({x, y})
-    |> translate_content
-    |> get_and_push_graph
-    |> (&{:noreply, &1}).()
-  end
-
-  def handle_input({:cursor_button, {:left, :release, _, _}}, _, %{scroll_state: :idle} = state),
-    do: state
-
-  def handle_input(
-        {:cursor_button, {:left, :release, _, _}},
-        _,
-        %{scroll_state: :cooling_down} = state
-      ),
-      do: state
-
-  def handle_input({:cursor_button, {:left, :release, _, {x, y}}}, _, state) do
-    state
-    |> Map.put(:scrolling, :cooling_down)
-    |> calculate_force({x, y})
-    |> reset_drag_state
-    |> collapse_input_capture_range
+    |> update_scroll_state
+    |> update_input_capture_range
+    |> apply_force
+    |> translate
     |> get_and_push_graph
     |> tick
-    |> (&{:noreply, &1}).()
   end
 
-  def handle_input(input, _, state) do
-    # IO.inspect(input, label: "input")
-    {:noreply, state}
+  defp update_scroll_state(state) do
+    verify_idle_state(state)
+    |> OptionEx.or_try(fn -> verify_dragging_state(state) end)
+    |> OptionEx.or_try(fn -> verify_scrolling_state(state) end)
+    |> OptionEx.or_try(fn -> verify_cooling_down_state(state) end)
+    |> OptionEx.map(&%{state | scrolling: &1})
+    |> OptionEx.or_else(state)
   end
 
-  # MEMO: no callback declared in Scenic.Scene, and no Genserver behaviour declared either, so @impl will fail
-  # @impl(Scenic.Scene)
-  @doc false
-  def handle_info(:tick, %{scrolling: :idle} = state) do
-    {:noreply, state}
+  defp apply_force(%{scrolling: :idle} = state), do: state
+
+  defp apply_force(%{scrolling: :dragging} = state) do
+    OptionEx.from_bool(Drag.dragging?(state.drag_state), {Drag, state.drag_state})
+    |> OptionEx.or_try(fn ->
+      OptionEx.from_bool(ScrollBar.dragging?(state.scrollbar), {ScrollBar, state.scrollbar})
+    end)
+    |> OptionEx.bind(fn {mod, state} -> mod.new_position(state) end)
+    |> OptionEx.map(&%{state | scroll_position: cap(state, &1)})
+    |> OptionEx.or_else(state)
   end
 
-  def handle_info(
-        :tick,
-        %{scrolling: :cooling_down, acceleration_state: %{current_speed: {0, 0}}} = state
-      ) do
-    %{state | scrolling: :idle}
-    |> (&{:noreply, &1}).()
+  defp apply_force(state) do
+    force =
+      Hotkeys.direction(state.hotkeys)
+      |> Vector2.add(ScrollBar.direction(state.scrollbar))
+
+    Acceleration.apply_force(state.acceleration, force)
+    |> Acceleration.apply_counter_pressure()
+    |> (&%{state | acceleration: &1}).()
+    |> (fn state ->
+          Map.update(state, :scroll_position, {0, 0}, fn scroll_pos ->
+            scroll_pos = Acceleration.translate(state.acceleration, scroll_pos)
+            cap(state, scroll_pos)
+          end)
+        end).()
   end
 
-  def handle_info(
-        :tick,
-        %{
-          scrolling: :scrolling,
-          acceleration_state: %{current_speed: {0, 0}},
-          drag_state: %{starting_point: :none}
-        } = state
-      ) do
-    tick(state)
-    |> (&{:noreply, &1}).()
-  end
-
-  def handle_info(:tick, %{acceleration_state: %{current_speed: {v_x, v_y}}} = state) do
-    state
-    |> Map.update(:scroll_position, {0, 0}, fn {x, y} -> cap(state, {x + v_x, y + v_y}) end)
-    |> apply_counter_pressure
-    |> translate_content
-    |> get_and_push_graph
-    |> tick
-    |> (&{:noreply, &1}).()
-  end
-
-  defp translate_content(state) do
+  defp translate(state) do
     Map.update!(state, :graph, fn graph ->
       graph
       |> Graph.modify(:content, fn primitive ->
@@ -249,10 +186,150 @@ defmodule Scenic.Scrollable do
     end)
   end
 
-  defp expand_input_capture_range(%{scrolling: :scrolling} = state), do: state
-  defp expand_input_capture_range(%{scrolling: :cooling_down} = state), do: state
+  defp verify_idle_state(state) do
+    result =
+      Hotkeys.direction(state.hotkeys) == {0, 0} and not Drag.dragging?(state.drag_state) and
+        not (ScrollBar.direction(state.scrollbar) == {0, 0}) and
+        not ScrollBar.dragging?(state.scrollbar) and
+        Acceleration.is_stationary?(state.acceleration)
 
-  defp expand_input_capture_range(%{graph: _} = state) do
+    OptionEx.from_bool(result, :idle)
+  end
+
+  defp verify_dragging_state(state) do
+    result = Drag.dragging?(state.drag_state) or ScrollBar.dragging?(state.scrollbar)
+
+    OptionEx.from_bool(result, :dragging)
+  end
+
+  defp verify_scrolling_state(state) do
+    result =
+      Hotkeys.direction(state.hotkeys) != {0, 0} or
+        (ScrollBar.direction(state.scrollbar) != {0, 0} and not (state.scrolling == :dragging))
+
+    OptionEx.from_bool(result, :scrolling)
+  end
+
+  defp verify_cooling_down_state(state) do
+    result =
+      Hotkeys.direction(state.hotkeys) == {0, 0} and not Drag.dragging?(state.drag_state) and
+        not (ScrollBar.direction(state.scrollbar) == {0, 0}) and
+        not ScrollBar.dragging?(state.scrollbar) and
+        not Acceleration.is_stationary?(state.acceleration)
+
+    OptionEx.from_bool(result, :cooling_down)
+  end
+
+  @impl Scenic.Scene
+  def handle_input(
+        {:cursor_button, {:left, :press, _, {x, y}}},
+        context,
+        state
+      ) do
+    state
+    |> capture_focus(context)
+    |> Map.update!(
+      :drag_state,
+      &Drag.handle_mouse_click(&1, :left, {x, y}, state.scroll_position)
+    )
+    |> update
+    |> (&{:noreply, &1}).()
+  end
+
+  def handle_input({:cursor_button, {button, :press, _, cursor_pos}}, _, state) do
+    state
+    |> Map.update!(
+      :drag_state,
+      &Drag.handle_mouse_click(&1, button, cursor_pos, state.scroll_position)
+    )
+    |> (&{:noreply, &1}).()
+  end
+
+  def handle_input({:cursor_pos, cursor_pos}, _, state) do
+    state
+    |> Map.update!(:drag_state, &Drag.handle_mouse_move(&1, cursor_pos))
+    |> update
+    |> (&{:noreply, &1}).()
+  end
+
+  def handle_input({:cursor_button, {:left, :release, _, cursor_pos}}, _, state) do
+    state
+    |> Map.update!(:drag_state, &Drag.handle_mouse_release(&1, :left, cursor_pos))
+    |> start_cooling_down(cursor_pos)
+    |> update
+    |> (&{:noreply, &1}).()
+  end
+
+  def handle_input({:cursor_button, {button, :release, _, cursor_pos}}, _, state) do
+    state
+    |> Map.update!(:drag_state, &Drag.handle_mouse_release(&1, button, cursor_pos))
+    |> start_cooling_down(cursor_pos)
+    |> update
+    |> (&{:noreply, &1}).()
+  end
+
+  def handle_input({:key, {"escape", :release, _}}, context, state) do
+    release_focus(state, context)
+    {:noreply, state}
+  end
+
+  def handle_input(
+        {:key, {key, :press, _}},
+        _,
+        state
+      ) do
+    Map.update!(state, :hotkeys, &Hotkeys.handle_key_press(&1, key))
+    |> update
+    |> (&{:noreply, &1}).()
+  end
+
+  def handle_input(
+        {:key, {key, :release, _}},
+        _,
+        state
+      ) do
+    Map.update!(state, :hotkeys, &Hotkeys.handle_key_release(&1, key))
+    |> update
+    |> (&{:noreply, &1}).()
+  end
+
+  def handle_input(_input, _, state) do
+    {:noreply, state}
+  end
+
+  def handle_info(:tick, state) do
+    %{state | animating: false}
+    |> update
+    |> (&{:noreply, &1}).()
+  end
+
+  defp start_cooling_down(state, cursor_pos) do
+    speed =
+      Drag.last_position(state.drag_state)
+      |> OptionEx.or_try(fn -> ScrollBar.last_position(state.scrollbar) end)
+      |> OptionEx.or_else(cursor_pos)
+      |> (&Vector2.sub(cursor_pos, &1)).()
+
+    Map.update!(state, :acceleration, &Acceleration.set_speed(&1, speed))
+  end
+
+  defp capture_focus(%{focused: false} = state, context) do
+    ViewPort.capture_input(context, :key)
+
+    %{state | focused: true}
+  end
+
+  defp capture_focus(state, _), do: state
+
+  defp release_focus(%{focused: true} = state, context) do
+    ViewPort.release_input(context, :key)
+
+    %{state | focused: false}
+  end
+
+  defp release_focus(state, _), do: state
+
+  defp update_input_capture_range(%{graph: _, scrolling: :dragging} = state) do
     Map.update!(state, :graph, fn graph ->
       graph
       # TODO get screen res (for all monitors added up) somehow ?
@@ -262,7 +339,7 @@ defmodule Scenic.Scrollable do
     end)
   end
 
-  defp collapse_input_capture_range(%{graph: _, frame: frame} = state) do
+  defp update_input_capture_range(%{graph: _, frame: frame} = state) do
     Map.update!(state, :graph, fn graph ->
       graph
       |> Graph.modify(:input_capture, fn primitive ->
@@ -274,148 +351,24 @@ defmodule Scenic.Scrollable do
     end)
   end
 
-  defp start_scroll(%{scrolling: :scrolling} = state), do: state
-  defp start_scroll(%{scrolling: :cooling_down} = state), do: state
+  defp tick(%{scrolling: :idle} = state), do: %{state | animating: false}
 
-  defp start_scroll(state) do
-    tick(state)
-  end
+  defp tick(%{scrolling: :dragging} = state), do: %{state | animating: false}
+
+  defp tick(%{animating: true} = state), do: state
 
   defp tick(state) do
     Process.send_after(self(), :tick, tick_time(state))
-    state
+    %{state | animating: true}
   end
 
-  defp parse_scroll_acceleration(nil), do: @default_acceleration
-  defp parse_scroll_acceleration({x, y}), do: {x, y}
-  defp parse_scroll_acceleration(x), do: {x, x}
-
-  defp parse_scroll_speed(nil), do: @default_scroll_speed
-  defp parse_scroll_speed({x, y}), do: {x, y}
-  defp parse_scroll_speed(x), do: {x, x}
-
-  defp parse_scroll_counter_pressure(nil), do: @default_counter_pressure
-  defp parse_scroll_counter_pressure({x, y}), do: {x, y}
-  defp parse_scroll_counter_pressure(x), do: {x, x}
-
-  defp update_drag_state(%{drag_state: _} = state, {x, y}) do
-    state
-    |> Map.update!(:drag_state, fn
-      %{starting_point: :none} = drag_state ->
-        %{
-          drag_state
-          | starting_point: {:some, {x, y}},
-            last_point: {:some, {x, y}},
-            original_content_position: state.scroll_position
-        }
-
-      %{starting_point: {:some, _}} = drag_state ->
-        %{drag_state | last_point: {:some, {x, y}}}
-    end)
-  end
-
-  defp reset_drag_state(state) do
-    state
-    |> Map.put(:drag_state, %{
-      starting_point: :none,
-      last_point: :none,
-      original_content_position: {0, 0}
-    })
-  end
-
-  #      acceleration_state: %{
-  #        acceleration: parse_scroll_acceleration(styles[:scroll_acceleration]),
-  #        current_speed: {0, 0},
-  #        max_speed: parse_scroll_speed(styles[:scroll_speed])
-  #      },
-  defp calculate_speed_x(
-         x,
-         %{
-           last_point: {:some, {last_x, _}},
-           acceleration: {acceleration, _},
-           max_speed: {max_speed, _},
-           current_speed: {current_speed, _}
-         }
-       ) do
-    calculate_speed(last_x, x, acceleration, current_speed, max_speed)
-  end
-
-  defp calculate_speed_y(
-         y,
-         %{
-           last_point: {:some, {_, last_y}},
-           acceleration: {_, acceleration},
-           max_speed: {_, max_speed},
-           current_speed: {_, current_speed}
-         }
-       ) do
-    calculate_speed(last_y, y, acceleration, current_speed, max_speed)
-  end
-
-  defp calculate_speed(prev_pos, pos, acceleration, speed, max_speed) do
-    speed_translation = acceleration * (pos - prev_pos)
-
-    (speed + speed_translation)
-    |> min(max_speed)
-    |> max(-max_speed)
-  end
-
-  defp calculate_drag_offset(
-         %{drag_state: %{starting_point: {:some, starting_point}} = drag_state} = state,
-         current_pos
-       ) do
-    current_pos
-    |> v2_subtract(starting_point)
-    |> v2_add(drag_state.original_content_position)
-    |> (&%{state | scroll_position: cap(state, &1)}).()
-  end
-
-  defp calculate_force(
-         %{drag_state: %{last_point: {:some, {last_x, last_y}}} = drag_state} = state,
-         {x, y}
-       ) do
-    {diff_x, diff_y} = {x - last_x, y - last_y}
-
-    update_in(state[:acceleration_state][:current_speed], fn {x, y} ->
-      {calculate_force(x, diff_x), calculate_force(y, diff_y)}
-    end)
-  end
-
-  defp calculate_force(0, diff), do: diff
-
-  defp calculate_force(current, diff) when diff > 0 do
-    max(diff, current)
-  end
-
-  defp calculate_force(current, diff) when diff < 0 do
-    min(diff, current)
-  end
-
-  defp apply_counter_pressure(
-         %{acceleration_state: %{current_speed: {v_x, v_y}, counter_pressure: {f_x, f_y}}} = state
-       ) do
-    f_x =
-      f_x
-      |> min(10)
-      |> max(1.1)
-
-    f_y =
-      f_y
-      |> min(10)
-      |> max(1.1)
-
-    v = {trunc(v_x / f_x), trunc(v_y / f_y)}
-
-    put_in(state[:acceleration_state][:current_speed], v)
+  defp tick_time(%{fps: fps}) do
+    trunc(1000 / fps)
   end
 
   defp get_and_push_graph(%{graph: graph} = state) do
     push_graph(graph)
     state
-  end
-
-  defp tick_time(%{fps: fps}) do
-    trunc(1000 / fps)
   end
 
   defp max_x(%{content: %{x: x}}), do: x
@@ -454,13 +407,5 @@ defmodule Scenic.Scrollable do
 
   defp cap_y(state, y) when y > 0 do
     min(max_y(state), y)
-  end
-
-  defp v2_subtract({x1, y1}, {x2, y2}) do
-    {x1 - x2, y1 - y2}
-  end
-
-  defp v2_add({x1, y1}, {x2, y2}) do
-    {x1 + x2, y1 + y2}
   end
 end

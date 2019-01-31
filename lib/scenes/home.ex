@@ -30,7 +30,9 @@ defmodule ScenicScrollable.Scene.Home do
         text(graph, @note)
       end,
       translate: {100, 100},
-      scroll_position: {0, 0}
+      scroll_position: {0, 0},
+      scroll_hotkeys: %{up: "w", down: "s", left: "d", right: "a"},
+      scroll_drag_settings: [:left]
     )
     #    |> group(fn graph ->
     #      graph
