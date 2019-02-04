@@ -26,7 +26,9 @@ defmodule ScenicScrollable.MixProject do
       {:scenic, "~> 0.9"},
       {:scenic_driver_glfw, "~> 0.9"},
       {:result_ex, "~> 0.1"},
-      {:option_ex, "~> 0.2"}
+      {:option_ex, "~> 0.2"},
+      {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
+      {:ex_doc, "~> 0.16", only: [:dev], runtime: false}
     ]
   end
 end

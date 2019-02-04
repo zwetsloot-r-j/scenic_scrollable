@@ -1,17 +1,22 @@
 defmodule Scenic.Scrollable do
+  @moduledoc """
+
+  """
+
   use Scenic.Component
 
   import Scenic.Primitives, only: [group: 3, rect: 3]
 
   alias Scenic.Graph
   alias Scenic.ViewPort
+  alias Scenic.ViewPort.Context
   alias Scenic.Math.Vector2
   alias Scenic.Scrollable.Hotkeys
   alias Scenic.Scrollable.Drag
   alias Scenic.Scrollable.ScrollBar
   alias Scenic.Scrollable.Acceleration
 
-  @type vector2 :: Scenic.Math.vector_2()
+  @type v2 :: Scenic.Math.vector_2()
 
   @type rect :: %{
           x: number,
@@ -21,12 +26,12 @@ defmodule Scenic.Scrollable do
         }
 
   @type style ::
-          {:scroll_position, vector2}
-          | {:scroll_acceleration, number | vector2}
-          | {:scroll_speed, number | vector2}
+          {:scroll_position, v2}
+          | {:scroll_acceleration, number | v2}
+          | {:scroll_speed, number | v2}
           | {:scroll_hotkeys, Hotkeys.t()}
           | {:scroll_fps, number}
-          | {:scroll_counter_pressure, number | vector2}
+          | {:scroll_counter_pressure, number | v2}
           | {:scroll_drag_settings, Drag.drag_settings()}
   # TODO bounce
 
@@ -40,11 +45,11 @@ defmodule Scenic.Scrollable do
 
   @type builder :: (Graph.t() -> Graph.t())
 
-  @type state :: %{
+  @type t :: %{
           graph: Graph.t(),
           frame: rect,
           content: rect,
-          scroll_position: vector2,
+          scroll_position: v2,
           fps: number,
           scrolling: scroll_state,
           drag_state: Drag.t(),
@@ -55,9 +60,9 @@ defmodule Scenic.Scrollable do
           animating: boolean
         }
 
-  @type t :: %Scenic.Scrollable{
-          frame: vector2,
-          content: vector2 | rect
+  @type scrollable_settings :: %Scenic.Scrollable{
+          frame: v2,
+          content: v2 | rect
         }
 
   defstruct frame: {0, 0},
@@ -116,18 +121,19 @@ defmodule Scenic.Scrollable do
       frame: %{x: frame_x, y: frame_y, width: frame_width, height: frame_height},
       content: content,
       scroll_position: {scroll_x, scroll_y},
+      scrolling: :idle,
       fps: styles[:fps] || @default_fps,
       animating: false,
-      scrolling: :idle,
+      focused: false,
       acceleration: Acceleration.init(styles[:scroll_acceleration_settings]),
       hotkeys: Hotkeys.init(styles[:scroll_hotkeys]),
       drag_state: Drag.init(styles[:scroll_drag_settings]),
-      scrollbar: ScrollBar.init(:todo),
-      focused: false
+      scrollbar: ScrollBar.init(:todo)
     }
     |> ResultEx.return()
   end
 
+  @spec update(t) :: t
   defp update(state) do
     state
     |> update_scroll_state
@@ -138,6 +144,7 @@ defmodule Scenic.Scrollable do
     |> tick
   end
 
+  @spec update_scroll_state(t) :: t
   defp update_scroll_state(state) do
     verify_idle_state(state)
     |> OptionEx.or_try(fn -> verify_dragging_state(state) end)
@@ -147,6 +154,7 @@ defmodule Scenic.Scrollable do
     |> OptionEx.or_else(state)
   end
 
+  @spec apply_force(t) :: t
   defp apply_force(%{scrolling: :idle} = state), do: state
 
   defp apply_force(%{scrolling: :dragging} = state) do
@@ -175,33 +183,37 @@ defmodule Scenic.Scrollable do
         end).()
   end
 
-  defp translate(state) do
+  @spec translate(t) :: t
+  defp translate(%{content: %{x: x, y: y}} = state) do
     Map.update!(state, :graph, fn graph ->
       graph
       |> Graph.modify(:content, fn primitive ->
         Map.update(primitive, :transforms, %{}, fn styles ->
-          Map.put(styles, :translate, state.scroll_position)
+          Map.put(styles, :translate, Vector2.add(state.scroll_position, {x, y}))
         end)
       end)
     end)
   end
 
+  @spec verify_idle_state(t) :: {:some, :idle} | :none
   defp verify_idle_state(state) do
     result =
       Hotkeys.direction(state.hotkeys) == {0, 0} and not Drag.dragging?(state.drag_state) and
-        not (ScrollBar.direction(state.scrollbar) == {0, 0}) and
+        (ScrollBar.direction(state.scrollbar) == {0, 0}) and
         not ScrollBar.dragging?(state.scrollbar) and
         Acceleration.is_stationary?(state.acceleration)
 
     OptionEx.from_bool(result, :idle)
   end
 
+  @spec verify_dragging_state(t) :: {:some, :dragging} | :none
   defp verify_dragging_state(state) do
     result = Drag.dragging?(state.drag_state) or ScrollBar.dragging?(state.scrollbar)
 
     OptionEx.from_bool(result, :dragging)
   end
 
+  @spec verify_scrolling_state(t) :: {:some, :scrolling} | :none
   defp verify_scrolling_state(state) do
     result =
       Hotkeys.direction(state.hotkeys) != {0, 0} or
@@ -210,10 +222,11 @@ defmodule Scenic.Scrollable do
     OptionEx.from_bool(result, :scrolling)
   end
 
+  @spec verify_cooling_down_state(t) :: {:some, :cooling_down} | :none
   defp verify_cooling_down_state(state) do
     result =
       Hotkeys.direction(state.hotkeys) == {0, 0} and not Drag.dragging?(state.drag_state) and
-        not (ScrollBar.direction(state.scrollbar) == {0, 0}) and
+        (ScrollBar.direction(state.scrollbar) == {0, 0}) and
         not ScrollBar.dragging?(state.scrollbar) and
         not Acceleration.is_stationary?(state.acceleration)
 
@@ -254,8 +267,8 @@ defmodule Scenic.Scrollable do
 
   def handle_input({:cursor_button, {:left, :release, _, cursor_pos}}, _, state) do
     state
-    |> Map.update!(:drag_state, &Drag.handle_mouse_release(&1, :left, cursor_pos))
     |> start_cooling_down(cursor_pos)
+    |> Map.update!(:drag_state, &Drag.handle_mouse_release(&1, :left, cursor_pos))
     |> update
     |> (&{:noreply, &1}).()
   end
@@ -297,22 +310,26 @@ defmodule Scenic.Scrollable do
     {:noreply, state}
   end
 
+  # no callback on the `Scenic.Scene` and no GenServer @behaviour, so impl will not work
   def handle_info(:tick, state) do
     %{state | animating: false}
     |> update
     |> (&{:noreply, &1}).()
   end
 
+  @spec start_cooling_down(t, v2) :: t
   defp start_cooling_down(state, cursor_pos) do
     speed =
       Drag.last_position(state.drag_state)
       |> OptionEx.or_try(fn -> ScrollBar.last_position(state.scrollbar) end)
       |> OptionEx.or_else(cursor_pos)
       |> (&Vector2.sub(cursor_pos, &1)).()
+      |> (&Drag.amplify_speed(state.drag_state, &1)).()
 
     Map.update!(state, :acceleration, &Acceleration.set_speed(&1, speed))
   end
 
+  @spec capture_focus(t, Context.t) :: t
   defp capture_focus(%{focused: false} = state, context) do
     ViewPort.capture_input(context, :key)
 
@@ -321,6 +338,7 @@ defmodule Scenic.Scrollable do
 
   defp capture_focus(state, _), do: state
 
+  @spec release_focus(t, Context.t) :: t
   defp release_focus(%{focused: true} = state, context) do
     ViewPort.release_input(context, :key)
 
@@ -329,6 +347,7 @@ defmodule Scenic.Scrollable do
 
   defp release_focus(state, _), do: state
 
+  @spec update_input_capture_range(t) :: t
   defp update_input_capture_range(%{graph: _, scrolling: :dragging} = state) do
     Map.update!(state, :graph, fn graph ->
       graph
@@ -351,6 +370,7 @@ defmodule Scenic.Scrollable do
     end)
   end
 
+  @spec tick(t) :: t
   defp tick(%{scrolling: :idle} = state), do: %{state | animating: false}
 
   defp tick(%{scrolling: :dragging} = state), do: %{state | animating: false}
@@ -362,31 +382,39 @@ defmodule Scenic.Scrollable do
     %{state | animating: true}
   end
 
+  @spec tick_time(t) :: number
   defp tick_time(%{fps: fps}) do
     trunc(1000 / fps)
   end
 
+  @spec get_and_push_graph(t) :: t
   defp get_and_push_graph(%{graph: graph} = state) do
     push_graph(graph)
     state
   end
 
+  @spec max_x(t) :: number
   defp max_x(%{content: %{x: x}}), do: x
 
+  @spec min_x(t) :: number
   defp min_x(%{frame: %{width: frame_width}, content: %{x: x, width: content_width}}) do
     x + frame_width - content_width
   end
 
+  @spec max_y(t) :: number
   defp max_y(%{content: %{y: y}}), do: y
 
+  @spec min_y(t) :: number
   defp min_y(%{frame: %{height: frame_height}, content: %{y: y, height: content_height}}) do
     y + frame_height - content_height
   end
 
+  @spec cap(t, v2) :: v2
   defp cap(state, {x, y}) do
     {cap_x(state, x), cap_y(state, y)}
   end
 
+  @spec cap_x(t, number) :: number
   defp cap_x(_, 0.0), do: 0
   defp cap_x(_, 0), do: 0
 
@@ -398,6 +426,7 @@ defmodule Scenic.Scrollable do
     min(max_x(state), x)
   end
 
+  @spec cap_y(t, number) :: number
   defp cap_y(_, 0.0), do: 0
   defp cap_y(_, 0), do: 0
 
