@@ -13,8 +13,9 @@ defmodule Scenic.Scrollable do
   alias Scenic.Math.Vector2
   alias Scenic.Scrollable.Hotkeys
   alias Scenic.Scrollable.Drag
-  alias Scenic.Scrollable.ScrollBar
+  alias Scenic.Scrollable.ScrollBars
   alias Scenic.Scrollable.Acceleration
+  alias Scenic.Scrollable.PositionCap
 
   @type v2 :: Scenic.Math.vector_2()
 
@@ -53,9 +54,10 @@ defmodule Scenic.Scrollable do
           fps: number,
           scrolling: scroll_state,
           drag_state: Drag.t(),
-          scrollbar: ScrollBar.t(),
+          scrollbar: pid,
           acceleration: Acceleration.t(),
           hotkeys: Hotkeys.t(),
+          position_caps: PositionCap.t(),
           focused: boolean,
           animating: boolean
         }
@@ -128,8 +130,9 @@ defmodule Scenic.Scrollable do
       acceleration: Acceleration.init(styles[:scroll_acceleration_settings]),
       hotkeys: Hotkeys.init(styles[:scroll_hotkeys]),
       drag_state: Drag.init(styles[:scroll_drag_settings]),
-      scrollbar: ScrollBar.init(:todo)
+      scrollbar: self() # TODO
     }
+    |> init_position_caps
     |> ResultEx.return()
   end
 
@@ -160,17 +163,17 @@ defmodule Scenic.Scrollable do
   defp apply_force(%{scrolling: :dragging} = state) do
     OptionEx.from_bool(Drag.dragging?(state.drag_state), {Drag, state.drag_state})
     |> OptionEx.or_try(fn ->
-      OptionEx.from_bool(ScrollBar.dragging?(state.scrollbar), {ScrollBar, state.scrollbar})
+      OptionEx.from_bool(ScrollBars.dragging?(state.scrollbar), {ScrollBars, state.scrollbar})
     end)
     |> OptionEx.bind(fn {mod, state} -> mod.new_position(state) end)
-    |> OptionEx.map(&%{state | scroll_position: cap(state, &1)})
+    |> OptionEx.map(&%{state | scroll_position: PositionCap.cap(state.position_caps, &1)})
     |> OptionEx.or_else(state)
   end
 
   defp apply_force(state) do
     force =
       Hotkeys.direction(state.hotkeys)
-      |> Vector2.add(ScrollBar.direction(state.scrollbar))
+      |> Vector2.add(ScrollBars.direction(state.scrollbar))
 
     Acceleration.apply_force(state.acceleration, force)
     |> Acceleration.apply_counter_pressure()
@@ -178,7 +181,7 @@ defmodule Scenic.Scrollable do
     |> (fn state ->
           Map.update(state, :scroll_position, {0, 0}, fn scroll_pos ->
             scroll_pos = Acceleration.translate(state.acceleration, scroll_pos)
-            cap(state, scroll_pos)
+            PositionCap.cap(state.position_caps, scroll_pos)
           end)
         end).()
   end
@@ -199,8 +202,8 @@ defmodule Scenic.Scrollable do
   defp verify_idle_state(state) do
     result =
       Hotkeys.direction(state.hotkeys) == {0, 0} and not Drag.dragging?(state.drag_state) and
-        (ScrollBar.direction(state.scrollbar) == {0, 0}) and
-        not ScrollBar.dragging?(state.scrollbar) and
+        (ScrollBars.direction(state.scrollbar) == {0, 0}) and
+        not ScrollBars.dragging?(state.scrollbar) and
         Acceleration.is_stationary?(state.acceleration)
 
     OptionEx.from_bool(result, :idle)
@@ -208,7 +211,7 @@ defmodule Scenic.Scrollable do
 
   @spec verify_dragging_state(t) :: {:some, :dragging} | :none
   defp verify_dragging_state(state) do
-    result = Drag.dragging?(state.drag_state) or ScrollBar.dragging?(state.scrollbar)
+    result = Drag.dragging?(state.drag_state) or ScrollBars.dragging?(state.scrollbar)
 
     OptionEx.from_bool(result, :dragging)
   end
@@ -217,7 +220,7 @@ defmodule Scenic.Scrollable do
   defp verify_scrolling_state(state) do
     result =
       Hotkeys.direction(state.hotkeys) != {0, 0} or
-        (ScrollBar.direction(state.scrollbar) != {0, 0} and not (state.scrolling == :dragging))
+        (ScrollBars.direction(state.scrollbar) != {0, 0} and not (state.scrolling == :dragging))
 
     OptionEx.from_bool(result, :scrolling)
   end
@@ -226,8 +229,8 @@ defmodule Scenic.Scrollable do
   defp verify_cooling_down_state(state) do
     result =
       Hotkeys.direction(state.hotkeys) == {0, 0} and not Drag.dragging?(state.drag_state) and
-        (ScrollBar.direction(state.scrollbar) == {0, 0}) and
-        not ScrollBar.dragging?(state.scrollbar) and
+        (ScrollBars.direction(state.scrollbar) == {0, 0}) and
+        not ScrollBars.dragging?(state.scrollbar) and
         not Acceleration.is_stationary?(state.acceleration)
 
     OptionEx.from_bool(result, :cooling_down)
@@ -321,7 +324,7 @@ defmodule Scenic.Scrollable do
   defp start_cooling_down(state, cursor_pos) do
     speed =
       Drag.last_position(state.drag_state)
-      |> OptionEx.or_try(fn -> ScrollBar.last_position(state.scrollbar) end)
+      |> OptionEx.or_try(fn -> ScrollBars.last_position(state.scrollbar) end)
       |> OptionEx.or_else(cursor_pos)
       |> (&Vector2.sub(cursor_pos, &1)).()
       |> (&Drag.amplify_speed(state.drag_state, &1)).()
@@ -393,48 +396,13 @@ defmodule Scenic.Scrollable do
     state
   end
 
-  @spec max_x(t) :: number
-  defp max_x(%{content: %{x: x}}), do: x
+  defp init_position_caps(%{
+    frame: %{width: frame_width, height: frame_height},
+    content: %{x: x, y: y, width: content_width, height: content_height}
+  } = state) do
+    min = {x + frame_width - content_width, y + frame_height - content_height}
+    max = {x, y}
 
-  @spec min_x(t) :: number
-  defp min_x(%{frame: %{width: frame_width}, content: %{x: x, width: content_width}}) do
-    x + frame_width - content_width
-  end
-
-  @spec max_y(t) :: number
-  defp max_y(%{content: %{y: y}}), do: y
-
-  @spec min_y(t) :: number
-  defp min_y(%{frame: %{height: frame_height}, content: %{y: y, height: content_height}}) do
-    y + frame_height - content_height
-  end
-
-  @spec cap(t, v2) :: v2
-  defp cap(state, {x, y}) do
-    {cap_x(state, x), cap_y(state, y)}
-  end
-
-  @spec cap_x(t, number) :: number
-  defp cap_x(_, 0.0), do: 0
-  defp cap_x(_, 0), do: 0
-
-  defp cap_x(state, x) when x < 0 do
-    max(min_x(state), x)
-  end
-
-  defp cap_x(state, x) when x > 0 do
-    min(max_x(state), x)
-  end
-
-  @spec cap_y(t, number) :: number
-  defp cap_y(_, 0.0), do: 0
-  defp cap_y(_, 0), do: 0
-
-  defp cap_y(state, y) when y < 0 do
-    max(min_y(state), y)
-  end
-
-  defp cap_y(state, y) when y > 0 do
-    min(max_y(state), y)
+    Map.put(state, :position_caps, PositionCap.init(%{min: min, max: max}))
   end
 end
