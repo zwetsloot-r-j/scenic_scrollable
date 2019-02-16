@@ -6,6 +6,7 @@ defmodule Scenic.Scrollable do
   use Scenic.Component
 
   import Scenic.Primitives, only: [group: 3, rect: 3]
+  import Scenic.Scrollable.Components, only: [scroll_bars: 3]
 
   alias Scenic.Graph
   alias Scenic.ViewPort
@@ -54,7 +55,7 @@ defmodule Scenic.Scrollable do
           fps: number,
           scrolling: scroll_state,
           drag_state: Drag.t(),
-          scrollbar: pid,
+          scroll_bars: ScrollBars.t(),
           acceleration: Acceleration.t(),
           hotkeys: Hotkeys.t(),
           position_caps: PositionCap.t(),
@@ -116,6 +117,12 @@ defmodule Scenic.Scrollable do
         scissor: {frame_width, frame_height},
         translate: {frame_x, frame_y}
       )
+      |> scroll_bars(%{
+        width: frame_width,
+        height: frame_height,
+        content_size: {content.width, content.height},
+        scroll_position: {scroll_x, scroll_y}
+      }, [])
       |> push_graph
 
     %{
@@ -130,7 +137,7 @@ defmodule Scenic.Scrollable do
       acceleration: Acceleration.init(styles[:scroll_acceleration_settings]),
       hotkeys: Hotkeys.init(styles[:scroll_hotkeys]),
       drag_state: Drag.init(styles[:scroll_drag_settings]),
-      scrollbar: self() # TODO
+      scroll_bars: %{} # set by initialize event
     }
     |> init_position_caps
     |> ResultEx.return()
@@ -163,7 +170,7 @@ defmodule Scenic.Scrollable do
   defp apply_force(%{scrolling: :dragging} = state) do
     OptionEx.from_bool(Drag.dragging?(state.drag_state), {Drag, state.drag_state})
     |> OptionEx.or_try(fn ->
-      OptionEx.from_bool(ScrollBars.dragging?(state.scrollbar), {ScrollBars, state.scrollbar})
+      OptionEx.from_bool(ScrollBars.dragging?(state.scroll_bars), {ScrollBars, state.scroll_bars})
     end)
     |> OptionEx.bind(fn {mod, state} -> mod.new_position(state) end)
     |> OptionEx.map(&%{state | scroll_position: PositionCap.cap(state.position_caps, &1)})
@@ -173,7 +180,7 @@ defmodule Scenic.Scrollable do
   defp apply_force(state) do
     force =
       Hotkeys.direction(state.hotkeys)
-      |> Vector2.add(ScrollBars.direction(state.scrollbar))
+      |> Vector2.add(ScrollBars.direction(state.scroll_bars))
 
     Acceleration.apply_force(state.acceleration, force)
     |> Acceleration.apply_counter_pressure()
@@ -202,8 +209,8 @@ defmodule Scenic.Scrollable do
   defp verify_idle_state(state) do
     result =
       Hotkeys.direction(state.hotkeys) == {0, 0} and not Drag.dragging?(state.drag_state) and
-        (ScrollBars.direction(state.scrollbar) == {0, 0}) and
-        not ScrollBars.dragging?(state.scrollbar) and
+        (ScrollBars.direction(state.scroll_bars) == {0, 0}) and
+        not ScrollBars.dragging?(state.scroll_bars) and
         Acceleration.is_stationary?(state.acceleration)
 
     OptionEx.from_bool(result, :idle)
@@ -211,7 +218,7 @@ defmodule Scenic.Scrollable do
 
   @spec verify_dragging_state(t) :: {:some, :dragging} | :none
   defp verify_dragging_state(state) do
-    result = Drag.dragging?(state.drag_state) or ScrollBars.dragging?(state.scrollbar)
+    result = Drag.dragging?(state.drag_state) or ScrollBars.dragging?(state.scroll_bars)
 
     OptionEx.from_bool(result, :dragging)
   end
@@ -220,7 +227,7 @@ defmodule Scenic.Scrollable do
   defp verify_scrolling_state(state) do
     result =
       Hotkeys.direction(state.hotkeys) != {0, 0} or
-        (ScrollBars.direction(state.scrollbar) != {0, 0} and not (state.scrolling == :dragging))
+        (ScrollBars.direction(state.scroll_bars) != {0, 0} and not (state.scrolling == :dragging))
 
     OptionEx.from_bool(result, :scrolling)
   end
@@ -229,8 +236,8 @@ defmodule Scenic.Scrollable do
   defp verify_cooling_down_state(state) do
     result =
       Hotkeys.direction(state.hotkeys) == {0, 0} and not Drag.dragging?(state.drag_state) and
-        (ScrollBars.direction(state.scrollbar) == {0, 0}) and
-        not ScrollBars.dragging?(state.scrollbar) and
+        (ScrollBars.direction(state.scroll_bars) == {0, 0}) and
+        not ScrollBars.dragging?(state.scroll_bars) and
         not Acceleration.is_stationary?(state.acceleration)
 
     OptionEx.from_bool(result, :cooling_down)
@@ -313,6 +320,24 @@ defmodule Scenic.Scrollable do
     {:noreply, state}
   end
 
+  @impl(Scenic.Scene)
+  def filter_event({:scroll_bars_initialized, _id, scroll_bars_state}, _from, state) do
+    %{state | scroll_bars: scroll_bars_state}
+    |> (&{:stop, &1}).()
+  end
+
+  def filter_event({:scroll_bars_position_change, _id, scroll_bars_state}, _from, state) do
+    %{state | scroll_bars: scroll_bars_state}
+    |> update
+    |> (&{:stop, &1}).()
+  end
+
+  def filter_event({:scroll_bars_scroll_end, _id, scroll_bars_state}, _from, state) do
+    %{state | scroll_bars: scroll_bars_state}
+    |> update
+    |> (&{:stop, &1}).()
+  end
+
   # no callback on the `Scenic.Scene` and no GenServer @behaviour, so impl will not work
   def handle_info(:tick, state) do
     %{state | animating: false}
@@ -324,7 +349,6 @@ defmodule Scenic.Scrollable do
   defp start_cooling_down(state, cursor_pos) do
     speed =
       Drag.last_position(state.drag_state)
-      |> OptionEx.or_try(fn -> ScrollBars.last_position(state.scrollbar) end)
       |> OptionEx.or_else(cursor_pos)
       |> (&Vector2.sub(cursor_pos, &1)).()
       |> (&Drag.amplify_speed(state.drag_state, &1)).()

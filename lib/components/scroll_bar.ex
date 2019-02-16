@@ -1,7 +1,6 @@
 defmodule Scenic.Scrollable.ScrollBar do
   use Scenic.Component
 
-  import Scenic.Components, only: [button: 3]
   import Scenic.Primitives, only: [rrect: 3, rect: 3]
 
   alias Scenic.Graph
@@ -9,6 +8,7 @@ defmodule Scenic.Scrollable.ScrollBar do
   alias Scenic.Scrollable.Drag
   alias Scenic.Scrollable.PositionCap
   alias Scenic.Primitive.Style.Theme
+  alias Scenic.Math.Vector2
 
   @type scroll_direction :: Direction.direction
 
@@ -25,6 +25,7 @@ defmodule Scenic.Scrollable.ScrollBar do
   }
 
   @type t :: %{
+    id: atom,
     graph: Graph.t,
     width: Direction.t,
     height: Direction.t,
@@ -39,11 +40,13 @@ defmodule Scenic.Scrollable.ScrollBar do
   @default_drag_settings [:left, :right, :middle]
   @default_button_radius 3
   @default_stroke_size 1
+  @default_id :scroll_bar
 
   def init(%{width: width, height: height, content_size: content_size, direction: direction} = settings, opts) do
     styles = opts[:styles] || %{}
 
     %{
+      id: opts[:id] || @default_id,
       graph: Graph.build(),
       width: Direction.as_horizontal(width),
       height: Direction.as_vertical(height),
@@ -78,6 +81,7 @@ defmodule Scenic.Scrollable.ScrollBar do
 
   def new_position(state) do
     scroll_position_vector2(state)
+    |> Vector2.mul(-1)
   end
 
   def last_position(state) do
@@ -116,10 +120,14 @@ defmodule Scenic.Scrollable.ScrollBar do
       rect(primitive, {0, 0}, translate: {0, 0})
     end)
     |> update
+    |> (fn state ->
+      :ok = send_event({:scroll_bar_scroll_end, state.id, state})
+      state
+    end).()
     |> (&{:stop, &1}).()
   end
 
-  def handle_input({:cursor_button, {button, :press, _, position}}, _, state) do
+  def handle_input({:cursor_button, {_button, :press, _, position}}, _, state) do
     scroll_position = vector2_to_direction(state, position)
                       |> Direction.map_horizontal(fn pos -> pos - button_width(state) / 2 end)
                       |> Direction.map_vertical(fn pos -> pos - button_height(state) / 2 end)
@@ -141,6 +149,10 @@ defmodule Scenic.Scrollable.ScrollBar do
     |> update_scroll_position
     |> update_graph_drag_control_position
     |> get_and_push_graph
+    |> (fn state ->
+      :ok = send_event({:scroll_bar_position_change, state.id, state})
+      state
+    end).()
   end
 
   defp update_graph_drag_control_position(state) do
@@ -166,9 +178,6 @@ defmodule Scenic.Scrollable.ScrollBar do
     push_graph(graph)
     state
   end
-
-  #def filter_event({:click, :scrollbar_slider_drag_control}, _, state) do
-  #end
 
   defp init_position_cap(%{width: {_, width}, height: {_, height}, direction: direction} = state) do
     max_x = Direction.map_horizontal({direction, width}, fn width -> width - button_width(state) end)
@@ -261,9 +270,9 @@ defmodule Scenic.Scrollable.ScrollBar do
     {:vertical, y / height_factor(state)}
   end
 
-  defp local_to_world(state, {:horizontal, _}), do: {:horizontal, 0}
+  defp local_to_world(_, {:horizontal, _}), do: {:horizontal, 0}
 
-  defp local_to_world(state, {:vertical, _}), do: {:vertical, 0}
+  defp local_to_world(_, {:vertical, _}), do: {:vertical, 0}
 
   defp local_to_world(state, {x, y}) do
     {x, y} = PositionCap.cap(state.position_cap, {x, y})
