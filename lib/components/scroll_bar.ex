@@ -162,6 +162,7 @@ defmodule Scenic.Scrollable.ScrollBar do
   end
 
   defp update_graph_drag_control_position(state) do
+    #IO.inspect(local_scroll_position_vector2(state), label: "update drag control")
     update_graph_component(state, :scrollbar_slider_drag_control, fn primitive ->
       Map.update(primitive, :transforms, %{}, fn transforms ->
         Map.put(transforms, :translate, local_scroll_position_vector2(state))
@@ -194,6 +195,7 @@ defmodule Scenic.Scrollable.ScrollBar do
             |> Direction.map_horizontal(fn _ -> 0 end)
             |> Direction.unwrap
 
+            # IO.inspect({max_x, max_y}, label: "bar cap")
     Map.put(state, :position_cap, PositionCap.init(%{min: {0, 0}, max: {max_x, max_y}}))
   end
 
@@ -292,7 +294,9 @@ defmodule Scenic.Scrollable.ScrollBar do
   defp local_to_world(%{direction: :vertical} = state, y), do: -y / height_factor(state)
 
   defp world_to_local(state, {x, y}) do
+    #IO.inspect(-y * height_factor(state), label: "cap y")
     PositionCap.cap(state.position_cap, {-x * width_factor(state), -y * height_factor(state)})
+    #|> IO.inspect(label: "capped pos")
   end
 
   defp world_to_local(%{direction: :horizontal} = state, x), do: -x * width_factor(state)

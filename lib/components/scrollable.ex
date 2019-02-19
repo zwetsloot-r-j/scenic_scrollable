@@ -68,6 +68,7 @@ defmodule Scenic.Scrollable do
           content: v2 | rect
         }
 
+  # TODO
   defstruct frame: {0, 0},
             content: {0, 0}
 
@@ -103,33 +104,13 @@ defmodule Scenic.Scrollable do
   def init(%{frame: {frame_width, frame_height}, content: content, builder: builder}, opts) do
     styles = opts[:styles] || %{}
     {frame_x, frame_y} = styles[:translate] || {0, 0}
-    {scroll_x, scroll_y} = styles[:scroll_position] || @default_scroll_position
-
-    #    graph =
-    #      Graph.build()
-    #      |> rect({frame_width, frame_height}, translate: {frame_x, frame_y}, id: :input_capture)
-    #      # MEMO: stacking up groups and scenes will result in reaching the cap prety fast when nesting scrollable elements
-    #      |> group(
-    #        fn graph ->
-    #          graph
-    #          |> group(builder, id: :content, translate: {content.x - scroll_x, content.y - scroll_y})
-    #        end,
-    #        scissor: {frame_width, frame_height},
-    #        translate: {frame_x, frame_y}
-    #      )
-    #      |> scroll_bars(%{
-    #        width: frame_width,
-    #        height: frame_height,
-    #        content_size: {content.width, content.height},
-    #        scroll_position: {scroll_x, scroll_y}
-    #      }, id: :scroll_bars)
-    #      |> push_graph
+    scroll_position = styles[:scroll_position] || @default_scroll_position
 
     %{
       graph: Graph.build(),
       frame: %{x: frame_x, y: frame_y, width: frame_width, height: frame_height},
       content: content,
-      scroll_position: {scroll_x, scroll_y},
+      scroll_position: Vector2.add(scroll_position, {content.x, content.y}),
       scrolling: :idle,
       fps: styles[:fps] || @default_fps,
       animating: false,
@@ -165,7 +146,7 @@ defmodule Scenic.Scrollable do
       graph,
       fn graph ->
         graph
-        |> group(builder, id: :content, translate: {content.x - scroll_x, content.y - scroll_y})
+        |> group(builder, id: :content, translate: Vector2.add(state.scroll_position, {content.x, content.y})) #{content.x - scroll_x, content.y - scroll_y})
       end,
       scissor: {frame.width, frame.height},
       translate: {frame.x, frame.y}
@@ -183,7 +164,10 @@ defmodule Scenic.Scrollable do
     # MEMO directly calling scroll bar for performance issues, there might be a cleaner way to do this
     state.scroll_bars.pid
     |> OptionEx.return
-    |> OptionEx.map(fn pid -> GenServer.call(pid, {:update_scroll_position, state.scroll_position}) end)
+    |> OptionEx.map(fn pid ->
+      new_scrollbar_position = Vector2.sub(state.scroll_position, {state.content.x, state.content.y})
+      GenServer.call(pid, {:update_scroll_position, new_scrollbar_position})
+    end)
 
     state
     #    graph
@@ -196,7 +180,7 @@ defmodule Scenic.Scrollable do
       width: frame.width,
       height: frame.height,
       content_size: {state.content.width, state.content.height},
-      scroll_position: state.scroll_position,
+      scroll_position: Vector2.sub(state.scroll_position, {state.content.x, state.content.y}),
     }, id: :scroll_bars)
   end
 
@@ -226,11 +210,13 @@ defmodule Scenic.Scrollable do
   defp apply_force(%{scrolling: :idle} = state), do: state
 
   defp apply_force(%{scrolling: :dragging} = state) do
-    OptionEx.from_bool(Drag.dragging?(state.drag_state), {Drag, state.drag_state})
+    OptionEx.from_bool(ScrollBars.dragging?(state.scroll_bars), state.scroll_bars)
+    |> OptionEx.bind(&ScrollBars.new_position/1)
+    |> OptionEx.map(fn new_position -> Vector2.add(new_position, {state.content.x, state.content.y}) end)
     |> OptionEx.or_try(fn ->
-      OptionEx.from_bool(ScrollBars.dragging?(state.scroll_bars), {ScrollBars, state.scroll_bars})
+      OptionEx.from_bool(Drag.dragging?(state.drag_state), state.drag_state)
+      |> OptionEx.bind(&Drag.new_position/1)
     end)
-    |> OptionEx.bind(fn {mod, state} -> mod.new_position(state) end)
     |> OptionEx.map(&%{state | scroll_position: PositionCap.cap(state.position_caps, &1)})
     |> OptionEx.or_else(state)
   end
@@ -381,7 +367,6 @@ defmodule Scenic.Scrollable do
 
   @impl(Scenic.Scene)
   def filter_event({:scroll_bars_initialized, _id, scroll_bars_state}, _from, state) do
-    IO.inspect("scroll bars initialized")
     %{state | scroll_bars: scroll_bars_state}
     |> (&{:stop, &1}).()
   end

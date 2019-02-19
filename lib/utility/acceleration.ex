@@ -15,7 +15,7 @@ defmodule Scenic.Scrollable.Acceleration do
   Data structure containing settings that define the behaviour of the `Scenic.Scrollable` components scroll speed and acceleration. Note that the `Scenic.Scrollable` content may not be able to move when the acceleration is set too low, or the mass and counter_pressure are set too high.
 
   Default settings:
-  - acceleration: 10
+  - acceleration: 20
   - mass: 1
   - counter_pressure: 0.1
   """
@@ -36,7 +36,7 @@ defmodule Scenic.Scrollable.Acceleration do
           speed: v2
         }
 
-  defstruct acceleration: 10,
+  defstruct acceleration: 20,
             mass: 1,
             counter_pressure: 0.1,
             force: {0, 0},
