@@ -3,6 +3,7 @@ defmodule ScenicScrollable.Scene.Home do
 
   alias Scenic.Graph
   import Scenic.Scrollable.Components, only: [scrollable: 4]
+  import Scenic.Components, only: [button: 3]
 
   import Scenic.Primitives
   # import Scenic.Components
@@ -28,6 +29,8 @@ defmodule ScenicScrollable.Scene.Home do
       %{frame: {200, 200}, content: %{x: 0, y: 15, width: 600, height: 300}},
       fn graph ->
         text(graph, @note)
+        |> button("ok", [])
+        |> rect({150, 100}, translate: {25, 50}, fill: :red)
       end,
       translate: {100, 100},
       scroll_position: {0, 0},

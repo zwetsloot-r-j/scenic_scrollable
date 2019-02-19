@@ -60,7 +60,10 @@ defmodule Scenic.Scrollable.ScrollBars do
       id: id,
       graph: graph,
       scroll_position: {x, y},
-      scroll_state: :idle
+      scroll_state: :idle,
+      pid: self(),
+      horizontal_scrollbar_pid: nil,
+      vertical_scrollbar_pid: nil
     }
 
     {send_event({:scroll_bars_initialized, state.id, state}), state}
@@ -74,7 +77,15 @@ defmodule Scenic.Scrollable.ScrollBars do
 
   def dragging?(_), do: false
 
-  def new_position(%{scroll_position: position}), do: {:some, position} |> IO.inspect
+  def new_position(%{scroll_position: position}), do: {:some, position}
+
+  def filter_event({:scroll_bar_initialized, :horizontal_scroll_bar, scrollbar_state}, _from, state) do
+    {:stop, %{state | horizontal_scrollbar_pid: scrollbar_state.pid}}
+  end
+
+  def filter_event({:scroll_bar_initialized, :vertical_scroll_bar, scrollbar_state}, _from, state) do
+    {:stop, %{state | vertical_scrollbar_pid: scrollbar_state.pid}}
+  end
 
   def filter_event({:scroll_bar_position_change, :vertical_scroll_bar, scrollbar_state}, _from, state) do
     {x, _} = state.scroll_position
@@ -100,6 +111,20 @@ defmodule Scenic.Scrollable.ScrollBars do
 
   def filter_event(_event, _from, state) do
     {:stop, state}
+  end
+
+  def handle_call({:update_scroll_position, position}, _, state) do
+    {x, y} = position
+    state = %{state | scroll_position: position}
+
+    # TODO error handling
+    OptionEx.return(state.horizontal_scrollbar_pid)
+    |> OptionEx.map(fn pid -> GenServer.call(pid, {:update_scroll_position, x}) end)
+
+    OptionEx.return(state.vertical_scrollbar_pid)
+    |> OptionEx.map(fn pid -> GenServer.call(pid, {:update_scroll_position, y}) end)
+
+    {:reply, :ok, state}
   end
 
 end

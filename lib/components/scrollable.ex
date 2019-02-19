@@ -105,28 +105,28 @@ defmodule Scenic.Scrollable do
     {frame_x, frame_y} = styles[:translate] || {0, 0}
     {scroll_x, scroll_y} = styles[:scroll_position] || @default_scroll_position
 
-    graph =
-      Graph.build()
-      |> rect({frame_width, frame_height}, translate: {frame_x, frame_y}, id: :input_capture)
-      # MEMO: stacking up groups and scenes will result in reaching the cap prety fast when nesting scrollable elements
-      |> group(
-        fn graph ->
-          graph
-          |> group(builder, id: :content, translate: {content.x - scroll_x, content.y - scroll_y})
-        end,
-        scissor: {frame_width, frame_height},
-        translate: {frame_x, frame_y}
-      )
-      |> scroll_bars(%{
-        width: frame_width,
-        height: frame_height,
-        content_size: {content.width, content.height},
-        scroll_position: {scroll_x, scroll_y}
-      }, [])
-      |> push_graph
+    #    graph =
+    #      Graph.build()
+    #      |> rect({frame_width, frame_height}, translate: {frame_x, frame_y}, id: :input_capture)
+    #      # MEMO: stacking up groups and scenes will result in reaching the cap prety fast when nesting scrollable elements
+    #      |> group(
+    #        fn graph ->
+    #          graph
+    #          |> group(builder, id: :content, translate: {content.x - scroll_x, content.y - scroll_y})
+    #        end,
+    #        scissor: {frame_width, frame_height},
+    #        translate: {frame_x, frame_y}
+    #      )
+    #      |> scroll_bars(%{
+    #        width: frame_width,
+    #        height: frame_height,
+    #        content_size: {content.width, content.height},
+    #        scroll_position: {scroll_x, scroll_y}
+    #      }, id: :scroll_bars)
+    #      |> push_graph
 
     %{
-      graph: graph,
+      graph: Graph.build(),
       frame: %{x: frame_x, y: frame_y, width: frame_width, height: frame_height},
       content: content,
       scroll_position: {scroll_x, scroll_y},
@@ -140,7 +140,64 @@ defmodule Scenic.Scrollable do
       scroll_bars: %{} # set by initialize event
     }
     |> init_position_caps
+    |> init_graph(builder)
     |> ResultEx.return()
+  end
+
+  defp init_graph(state, builder) do
+    state
+    |> init_input_capture
+    |> init_content(builder)
+    |> init_scroll_bars
+    |> get_and_push_graph
+  end
+
+  defp init_input_capture(%{graph: graph, frame: frame} = state) do
+    graph
+    |> rect({frame.width, frame.height}, translate: {frame.x, frame.y}, id: :input_capture)
+    |> (&%{state | graph: &1}).()
+  end
+
+  defp init_content(%{graph: graph, frame: frame, content: content} = state, builder) do
+    {scroll_x, scroll_y} = state.scroll_position
+    # MEMO: stacking up groups and scenes will result in reaching the cap prety fast when nesting scrollable elements
+    group(
+      graph,
+      fn graph ->
+        graph
+        |> group(builder, id: :content, translate: {content.x - scroll_x, content.y - scroll_y})
+      end,
+      scissor: {frame.width, frame.height},
+      translate: {frame.x, frame.y}
+    )
+    |> (&%{state | graph: &1}).()
+  end
+
+  defp init_scroll_bars(%{graph: graph} = state) do
+    update_scroll_bars(graph, state)
+    |> (&%{state | graph: &1}).()
+  end
+
+  defp update_scroll_bars(%{graph: graph} = state) do
+    # TODO refactor?
+    # MEMO directly calling scroll bar for performance issues, there might be a cleaner way to do this
+    state.scroll_bars.pid
+    |> OptionEx.return
+    |> OptionEx.map(fn pid -> GenServer.call(pid, {:update_scroll_position, state.scroll_position}) end)
+
+    state
+    #    graph
+    #    |> Graph.modify(:scroll_bars, fn primitive -> update_scroll_bars(primitive, state) end)
+    #    |> (&%{state | graph: &1}).()
+  end
+
+  defp update_scroll_bars(graph_or_primitive, %{frame: frame} = state) do
+    scroll_bars(graph_or_primitive, %{
+      width: frame.width,
+      height: frame.height,
+      content_size: {state.content.width, state.content.height},
+      scroll_position: state.scroll_position,
+    }, id: :scroll_bars)
   end
 
   @spec update(t) :: t
@@ -150,6 +207,7 @@ defmodule Scenic.Scrollable do
     |> update_input_capture_range
     |> apply_force
     |> translate
+    |> update_scroll_bars
     |> get_and_push_graph
     |> tick
   end
@@ -265,6 +323,7 @@ defmodule Scenic.Scrollable do
       :drag_state,
       &Drag.handle_mouse_click(&1, button, cursor_pos, state.scroll_position)
     )
+    |> update
     |> (&{:noreply, &1}).()
   end
 
@@ -322,6 +381,7 @@ defmodule Scenic.Scrollable do
 
   @impl(Scenic.Scene)
   def filter_event({:scroll_bars_initialized, _id, scroll_bars_state}, _from, state) do
+    IO.inspect("scroll bars initialized")
     %{state | scroll_bars: scroll_bars_state}
     |> (&{:stop, &1}).()
   end
@@ -336,6 +396,10 @@ defmodule Scenic.Scrollable do
     %{state | scroll_bars: scroll_bars_state}
     |> update
     |> (&{:stop, &1}).()
+  end
+
+  def filter_event(event, _, state) do
+    {:continue, event, state}
   end
 
   # no callback on the `Scenic.Scene` and no GenServer @behaviour, so impl will not work

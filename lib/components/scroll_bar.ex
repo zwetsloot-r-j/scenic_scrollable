@@ -1,5 +1,5 @@
 defmodule Scenic.Scrollable.ScrollBar do
-  use Scenic.Component
+  use Scenic.Component, has_children: false
 
   import Scenic.Primitives, only: [rrect: 3, rect: 3]
 
@@ -54,10 +54,15 @@ defmodule Scenic.Scrollable.ScrollBar do
       scroll_position: Direction.return(settings.scroll_position, direction),
       direction: direction,
       drag_state: Drag.init(styles[:scroll_drag_settings] || @default_drag_settings),
-      drag_button_clicked: false
+      drag_button_clicked: false,
+      pid: self()
     }
     |> init_position_cap()
     |> init_graph()
+    |> (fn state ->
+      :ok = send_event({:scroll_bar_initialized, state.id, state})
+      state
+    end).()
     |> ResultEx.return
   end
 
@@ -81,12 +86,6 @@ defmodule Scenic.Scrollable.ScrollBar do
 
   def new_position(state) do
     scroll_position_vector2(state)
-    |> Vector2.mul(-1)
-  end
-
-  def last_position(state) do
-    last_position = Drag.last_position(state.drag_state)
-    local_to_world(state, last_position)
   end
 
   def handle_input({:cursor_button, {button, :press, _, position}}, %{id: :scrollbar_slider_drag_control}, state) do
@@ -142,6 +141,13 @@ defmodule Scenic.Scrollable.ScrollBar do
 
   def handle_input(_event, _context, state) do
     {:stop, state}
+  end
+
+  def handle_call({:update_scroll_position, position}, _, state) do
+    %{state | scroll_position: Direction.return(position, state.direction)}
+    |> update_graph_drag_control_position
+    |> get_and_push_graph
+    |> (&{:reply, :ok, &1}).()
   end
 
   defp update(state) do
@@ -263,11 +269,11 @@ defmodule Scenic.Scrollable.ScrollBar do
   end
 
   defp local_to_world(%{direction: :horizontal} = state, {:horizontal, x}) do
-    {:horizontal, x / width_factor(state)}
+    {:horizontal, -x / width_factor(state)}
   end
 
   defp local_to_world(%{direction: :vertical} = state, {:vertical, y}) do
-    {:vertical, y / height_factor(state)}
+    {:vertical, -y / height_factor(state)}
   end
 
   defp local_to_world(_, {:horizontal, _}), do: {:horizontal, 0}
@@ -281,17 +287,17 @@ defmodule Scenic.Scrollable.ScrollBar do
 
   defp local_to_world(_, 0), do: 0
 
-  defp local_to_world(%{direction: :horizontal} = state, x), do: x / width_factor(state)
+  defp local_to_world(%{direction: :horizontal} = state, x), do: -x / width_factor(state)
 
-  defp local_to_world(%{direction: :vertical} = state, y), do: y / height_factor(state)
+  defp local_to_world(%{direction: :vertical} = state, y), do: -y / height_factor(state)
 
   defp world_to_local(state, {x, y}) do
-    PositionCap.cap(state.position_cap, {x * width_factor(state), y * height_factor(state)})
+    PositionCap.cap(state.position_cap, {-x * width_factor(state), -y * height_factor(state)})
   end
 
-  defp world_to_local(%{direction: :horizontal} = state, x), do: x * width_factor(state)
+  defp world_to_local(%{direction: :horizontal} = state, x), do: -x * width_factor(state)
 
-  defp world_to_local(%{direction: :vertical} = state, y), do: y * height_factor(state)
+  defp world_to_local(%{direction: :vertical} = state, y), do: -y * height_factor(state)
 
   defp vector2_to_direction(%{direction: :horizontal}, {x, _}), do: {:horizontal, x}
 
