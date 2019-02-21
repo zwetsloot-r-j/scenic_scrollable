@@ -12,12 +12,26 @@ defmodule Scenic.Scrollable.Direction do
   def as_horizontal(x), do: return(x, :horizontal)
   def as_vertical(x), do: return(x, :vertical)
 
+  def to_vector_2({:horizontal, x}), do: {x, 0}
+  def to_vector_2({:vertical, y}), do: {0, y}
+
+  def from_vector_2({x, _}, :horizontal), do: {:horizontal, x}
+  def from_vector_2({_, y}, :vertical), do: {:vertical, y}
+
   def unwrap({_, x}), do: x
+
+  def invert({:horizontal, x}), do: {:vertical, x}
+  def invert({:vertical, x}), do: {:horizontal, x}
 
   def add({:horizontal, x}, {:horizontal, y}), do: {:horizontal, x + y}
   def add({:horizontal, x}, {:vertical, _}), do: {:horizontal, x}
   def add({:vertical, x}, {:vertical, y}), do: {:vertical, x + y}
   def add({:vertical, x}, {:horizontal, _}), do: {:vertical, x}
+
+  def subtract({:horizontal, x}, {:horizontal, y}), do: {:horizontal, x - y}
+  def subtract({:horizontal, x}, {:vertical, _}), do: {:horizontal, x}
+  def subtract({:vertical, x}, {:vertical, y}), do: {:vertical, x - y}
+  def subtract({:vertical, x}, {:horizontal, _}), do: {:vertical, x}
 
   def multiply({:horizontal, x}, {:horizontal, y}), do: {:horizontal, x * y}
   def multiply({:horizontal, x}, {:vertical, _}), do: {:horizontal, x}

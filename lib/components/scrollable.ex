@@ -140,7 +140,6 @@ defmodule Scenic.Scrollable do
   end
 
   defp init_content(%{graph: graph, frame: frame, content: content} = state, builder) do
-    {scroll_x, scroll_y} = state.scroll_position
     # MEMO: stacking up groups and scenes will result in reaching the cap prety fast when nesting scrollable elements
     group(
       graph,
@@ -159,7 +158,7 @@ defmodule Scenic.Scrollable do
     |> (&%{state | graph: &1}).()
   end
 
-  defp update_scroll_bars(%{graph: graph} = state) do
+  defp update_scroll_bars(state) do
     # TODO refactor?
     # MEMO directly calling scroll bar for performance issues, there might be a cleaner way to do this
     state.scroll_bars.pid

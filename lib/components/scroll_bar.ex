@@ -1,7 +1,8 @@
 defmodule Scenic.Scrollable.ScrollBar do
-  use Scenic.Component, has_children: false
+  use Scenic.Component
 
   import Scenic.Primitives, only: [rrect: 3, rect: 3]
+  import Scenic.Components, only: [button: 3]
 
   alias Scenic.Graph
   alias Scenic.Scrollable.Direction
@@ -29,13 +30,30 @@ defmodule Scenic.Scrollable.ScrollBar do
     graph: Graph.t,
     width: Direction.t,
     height: Direction.t,
+    frame_size: Direction.t,
     content_size: Direction.t,
     scroll_position: Direction.t,
     direction: scroll_direction,
     drag_state: Drag.t,
     drag_button_clicked: boolean,
-    position_cap: PositionCap.t
+    position_cap: PositionCap.t,
+    scroll_buttons: {:some, term} | :none,
+    pid: pid
   }
+
+  defstruct id: :scroll_bar,
+    graph: nil,
+    width: nil,
+    height: nil,
+    content_size: nil,
+    frame_size: nil,
+    scroll_position: nil,
+    direction: nil,
+    drag_state: %{},
+    drag_button_clicked: false,
+    position_cap: %{},
+    scroll_buttons: :none,
+    pid: nil
 
   @default_drag_settings [:left, :right, :middle]
   @default_button_radius 3
@@ -44,19 +62,20 @@ defmodule Scenic.Scrollable.ScrollBar do
 
   def init(%{width: width, height: height, content_size: content_size, direction: direction} = settings, opts) do
     styles = opts[:styles] || %{}
+    scroll_buttons = opts[:scroll_buttons] || true # TODO make default false and pass as options
 
-    %{
+    %__MODULE__{
       id: opts[:id] || @default_id,
       graph: Graph.build(),
-      width: Direction.as_horizontal(width),
-      height: Direction.as_vertical(height),
       content_size: Direction.return(content_size, direction),
+      frame_size: Direction.from_vector_2({width, height}, direction),
       scroll_position: Direction.return(settings.scroll_position, direction),
       direction: direction,
       drag_state: Drag.init(styles[:scroll_drag_settings] || @default_drag_settings),
-      drag_button_clicked: false,
+      scroll_buttons: OptionEx.from_bool(scroll_buttons, %{}),
       pid: self()
     }
+    |> init_size(width, height)
     |> init_position_cap()
     |> init_graph()
     |> (fn state ->
@@ -126,8 +145,8 @@ defmodule Scenic.Scrollable.ScrollBar do
     |> (&{:stop, &1}).()
   end
 
-  def handle_input({:cursor_button, {_button, :press, _, position}}, _, state) do
-    scroll_position = vector2_to_direction(state, position)
+  def handle_input({:cursor_button, {_button, :press, _, position}}, _, %{direction: direction} = state) do
+    scroll_position = Direction.from_vector_2(position, direction)
                       |> Direction.map_horizontal(fn pos -> pos - button_width(state) / 2 end)
                       |> Direction.map_vertical(fn pos -> pos - button_height(state) / 2 end)
 
@@ -162,7 +181,6 @@ defmodule Scenic.Scrollable.ScrollBar do
   end
 
   defp update_graph_drag_control_position(state) do
-    #IO.inspect(local_scroll_position_vector2(state), label: "update drag control")
     update_graph_component(state, :scrollbar_slider_drag_control, fn primitive ->
       Map.update(primitive, :transforms, %{}, fn transforms ->
         Map.put(transforms, :translate, local_scroll_position_vector2(state))
@@ -186,23 +204,82 @@ defmodule Scenic.Scrollable.ScrollBar do
     state
   end
 
-  defp init_position_cap(%{width: {_, width}, height: {_, height}, direction: direction} = state) do
-    max_x = Direction.map_horizontal({direction, width}, fn width -> width - button_width(state) end)
-            |> Direction.map_vertical(fn _ -> 0 end)
-            |> Direction.unwrap
+  defp init_size(%{scroll_buttons: :none} = state, width, height) do
+    state
+    |> Map.put(:width, Direction.as_horizontal(width))
+    |> Map.put(:height, Direction.as_vertical(height))
+  end
 
-    max_y = Direction.map_vertical({direction, height}, fn height -> height - button_height(state) end)
-            |> Direction.map_horizontal(fn _ -> 0 end)
-            |> Direction.unwrap
+  defp init_size(%{scroll_buttons: {:some, _}} = state, width, height) do
+    width = Direction.as_horizontal(width)
+    height = Direction.as_vertical(height)
 
-            # IO.inspect({max_x, max_y}, label: "bar cap")
-    Map.put(state, :position_cap, PositionCap.init(%{min: {0, 0}, max: {max_x, max_y}}))
+    displacement = scroll_bar_displacement(
+                     state
+                     |> Map.put(:width, width)
+                     |> Map.put(:height, height)
+                   )
+
+    button_size_difference = Direction.map(displacement, & &1 * 2)
+
+    state
+    |> Map.put(:width, Direction.subtract(width, button_size_difference))
+    |> Map.put(:height, Direction.subtract(height, button_size_difference))
+  end
+
+  defp scroll_bar_displacement(%{direction: direction} = state) do
+    scroll_button_size(state)
+    |> Direction.return(direction)
+  end
+
+  defp init_scroll_buttons(%{scroll_buttons: :none} = state), do: state
+  defp init_scroll_buttons(%{graph: graph, direction: direction} = state) do
+    {btn1_text, btn2_text} = Direction.return({"", ""}, direction)
+                             |> Direction.map_horizontal(fn {left, right} -> {left <> "<", right <> ">"} end)
+                             |> Direction.map_vertical(fn {up, down} -> {up <> "^", down <> "v"} end)
+                             |> Direction.unwrap
+
+    size = scroll_button_size(state)
+
+    button_2_position = Direction.return(size, direction)
+                        |> Direction.add(state.width)
+                        |> Direction.add(state.height)
+                        |> Direction.to_vector_2
+
+    graph
+    |> button(btn1_text, width: size, height: size, translate: {0, 0}, id: :scroll_button_1)
+    |> button(btn2_text, width: size, height: size, translate: button_2_position, id: :scroll_button_2)
+    |> (&%{state | graph: &1}).()
+  end
+
+  defp scroll_button_size(%{scroll_buttons: :none}), do: 0
+  defp scroll_button_size(%{width: width, height: height, direction: direction}) do
+    Direction.return(1, direction)
+    |> Direction.invert
+    |> Direction.multiply(width)
+    |> Direction.multiply(height)
+    |> Direction.unwrap
+  end
+
+  defp init_position_cap(%{direction: direction} = state) do
+    max = Direction.return(0, direction)
+          |> Direction.add(state.width)
+          |> Direction.add(state.height)
+          |> Direction.map_horizontal(fn width -> width - button_width(state) + scroll_button_size(state) end)
+          |> Direction.map_vertical(fn height -> height - button_height(state) + scroll_button_size(state) end)
+          |> Direction.to_vector_2
+
+    min = scroll_bar_displacement(state)
+          |> Direction.to_vector_2
+
+    Map.put(state, :position_cap, PositionCap.init(%{min: min, max: max}))
   end
 
   defp init_graph(state) do
     width = Direction.unwrap(state.width)
     height = Direction.unwrap(state.height)
 
+    # TODO pass as options
     drag_control_theme = Theme.preset(:light)
     bg_theme = Theme.preset(:dark)
 
@@ -212,7 +289,8 @@ defmodule Scenic.Scrollable.ScrollBar do
         {width, height, @default_button_radius},
         id: :scrollbar_slider_background,
         fill: bg_theme.background,
-        stroke: {@default_stroke_size, bg_theme.border}
+        stroke: {@default_stroke_size, bg_theme.border},
+        translate: Direction.to_vector_2(scroll_bar_displacement(state))
       )
       |> rrect(
         {button_width(state), button_height(state), @default_button_radius},
@@ -221,61 +299,59 @@ defmodule Scenic.Scrollable.ScrollBar do
         fill: drag_control_theme.background
       )
       |> rect({0, 0}, id: :input_capture)
-      |> push_graph
     end)
-    # TODO add optional directional buttons
+    |> init_scroll_buttons
+    |> get_and_push_graph
   end
 
-  defp button_width(state) do
-    Direction.unwrap(state.width) * width_factor(state)
-  end
-
-  defp button_height(state) do
-    Direction.unwrap(state.height) * height_factor(state)
-  end
-
-  defp width_factor(%{content_size: size, width: {_, width}}) do
-    Direction.map_horizontal(size, fn size -> width / size end)
-    |> Direction.map_vertical(fn _ -> 1 end)
+  defp button_width(%{direction: :horizontal} = state) do
+    Direction.divide(state.frame_size, state.content_size)
+    |> Direction.multiply(state.width)
     |> Direction.unwrap
   end
+  defp button_width(state), do: Direction.unwrap(state.width)
 
-  defp height_factor(%{content_size: size, height: {_, height}}) do
-    Direction.map_vertical(size, fn size -> height / size end)
-    |> Direction.map_horizontal(fn _ -> 1 end)
+  defp button_height(%{direction: :vertical} = state) do
+    Direction.divide(state.frame_size, state.content_size)
+    |> Direction.multiply(state.height)
     |> Direction.unwrap
   end
+  defp button_height(state), do: Direction.unwrap(state.height)
+
+  defp width_factor(%{content_size: {:horizontal, size}, width: {_, width}}) do
+    width / size
+  end
+
+  defp width_factor(_), do: 1
+
+  defp height_factor(%{content_size: {:vertical, size}, height: {_, height}}) do
+    height / size
+  end
+
+  defp height_factor(_), do: 1
 
   defp scroll_position_vector2(state) do
-    x = Direction.as_horizontal(0)
-        |> Direction.add(state.scroll_position)
-        |> Direction.unwrap
-
-    y = Direction.as_vertical(0)
-        |> Direction.add(state.scroll_position)
-        |> Direction.unwrap
-
-    {x, y}
+    Direction.to_vector_2(state.scroll_position)
   end
 
   defp local_scroll_position_vector2(state) do
     world_to_local(state, scroll_position_vector2(state))
   end
 
-  defp update_scroll_position(state) do
+  defp update_scroll_position(%{direction: direction} = state) do
     Drag.new_position(state.drag_state)
-    |> OptionEx.map(&vector2_to_direction(state, &1))
+    |> OptionEx.map(&Direction.from_vector_2(&1, direction))
     |> OptionEx.map(&Direction.map(&1, fn position -> local_to_world(state, position) end)) 
     |> OptionEx.map(&%{state | scroll_position: &1})
     |> OptionEx.or_else(state)
   end
 
   defp local_to_world(%{direction: :horizontal} = state, {:horizontal, x}) do
-    {:horizontal, -x / width_factor(state)}
+    {:horizontal, local_to_world(state, x)}
   end
 
   defp local_to_world(%{direction: :vertical} = state, {:vertical, y}) do
-    {:vertical, -y / height_factor(state)}
+    {:vertical, local_to_world(state, y)}
   end
 
   defp local_to_world(_, {:horizontal, _}), do: {:horizontal, 0}
@@ -289,22 +365,24 @@ defmodule Scenic.Scrollable.ScrollBar do
 
   defp local_to_world(_, 0), do: 0
 
-  defp local_to_world(%{direction: :horizontal} = state, x), do: -x / width_factor(state)
+  defp local_to_world(%{direction: :horizontal} = state, x),
+    do: -(x - scroll_button_size(state)) / width_factor(state)
 
-  defp local_to_world(%{direction: :vertical} = state, y), do: -y / height_factor(state)
+  defp local_to_world(%{direction: :vertical} = state, y),
+    do: -(y - scroll_button_size(state)) / height_factor(state)
 
-  defp world_to_local(state, {x, y}) do
-    #IO.inspect(-y * height_factor(state), label: "cap y")
-    PositionCap.cap(state.position_cap, {-x * width_factor(state), -y * height_factor(state)})
-    #|> IO.inspect(label: "capped pos")
+  defp world_to_local(%{direction: direction} = state, {x, y}) do
+    position = Direction.from_vector_2({x, y}, direction)
+               |> Direction.map(&world_to_local(state, &1))
+               |> Direction.to_vector_2
+
+    PositionCap.cap(state.position_cap, position)
   end
 
-  defp world_to_local(%{direction: :horizontal} = state, x), do: -x * width_factor(state)
+  defp world_to_local(%{direction: :horizontal} = state, x),
+    do: -x * width_factor(state) + scroll_button_size(state)
 
-  defp world_to_local(%{direction: :vertical} = state, y), do: -y * height_factor(state)
-
-  defp vector2_to_direction(%{direction: :horizontal}, {x, _}), do: {:horizontal, x}
-
-  defp vector2_to_direction(%{direction: :vertical}, {_, y}), do: {:vertical, y}
+  defp world_to_local(%{direction: :vertical} = state, y),
+    do: -y * height_factor(state) + scroll_button_size(state)
 
 end
