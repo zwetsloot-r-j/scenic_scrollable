@@ -370,6 +370,17 @@ defmodule Scenic.Scrollable do
     |> (&{:stop, &1}).()
   end
 
+  def filter_event({:scroll_bars_position_change, _id, %{scroll_state: :idle} = scroll_bars_state}, _from, state) do
+    # TODO move this position update to apply force?
+    ScrollBars.new_position(scroll_bars_state)
+    |> OptionEx.map(&Vector2.add(&1, {state.content.x, state.content.y}))
+    |> OptionEx.map(fn pos -> %{state | scroll_position: pos} end)
+    |> OptionEx.or_else(state)
+    |> Map.put(:scroll_bars, scroll_bars_state)
+    |> update
+    |> (&{:stop, &1}).()
+  end
+
   def filter_event({:scroll_bars_position_change, _id, scroll_bars_state}, _from, state) do
     %{state | scroll_bars: scroll_bars_state}
     |> update
@@ -377,6 +388,18 @@ defmodule Scenic.Scrollable do
   end
 
   def filter_event({:scroll_bars_scroll_end, _id, scroll_bars_state}, _from, state) do
+    %{state | scroll_bars: scroll_bars_state}
+    |> update
+    |> (&{:stop, &1}).()
+  end
+
+  def filter_event({:scroll_bars_button_pressed, _id, scroll_bars_state}, _from, state) do
+    %{state | scroll_bars: scroll_bars_state}
+    |> update
+    |> (&{:stop, &1}).()
+  end
+
+  def filter_event({:scroll_bars_button_released, _id, scroll_bars_state}, _from, state) do
     %{state | scroll_bars: scroll_bars_state}
     |> update
     |> (&{:stop, &1}).()

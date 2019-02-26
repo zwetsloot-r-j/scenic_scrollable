@@ -5,6 +5,7 @@ defmodule Scenic.Scrollable.ScrollBars do
 
   alias Scenic.Graph
   alias Scenic.Scrollable.ScrollBar
+  alias Scenic.Scrollable.Direction
 
   @type v2 :: Scenic.Scrollable.v2
 
@@ -69,8 +70,18 @@ defmodule Scenic.Scrollable.ScrollBars do
     {send_event({:scroll_bars_initialized, state.id, state}), state}
   end
 
-  def direction(_state) do
-    {0, 0}
+  def direction(state) do
+    {x, _} = state.horizontal_scrollbar_pid
+             |> OptionEx.return
+             |> OptionEx.map(&ScrollBar.direction/1)
+             |> OptionEx.or_else({0, 0})
+
+    {_, y} = state.vertical_scrollbar_pid
+             |> OptionEx.return
+             |> OptionEx.map(&ScrollBar.direction/1)
+             |> OptionEx.or_else({0, 0})
+
+    {x, y}
   end
 
   def dragging?(%{scroll_state: :dragging}), do: true
@@ -87,24 +98,34 @@ defmodule Scenic.Scrollable.ScrollBars do
     {:stop, %{state | vertical_scrollbar_pid: scrollbar_state.pid}}
   end
 
-  def filter_event({:scroll_bar_position_change, :vertical_scroll_bar, scrollbar_state}, _from, state) do
-    {x, _} = state.scroll_position
-    {_, y} = ScrollBar.new_position(scrollbar_state)
-    state = %{state | scroll_position: {x, y}, scroll_state: :dragging}
-
-    {:continue, {:scroll_bars_position_change, state.id, state}, state}
+  def filter_event({:scroll_bar_button_pressed, _, scrollbar_state}, _from, state) do
+    state = update_scroll_state(state, scrollbar_state)
+    {:continue, {:scroll_bars_button_pressed, state.id, state}, state}
   end
 
-  def filter_event({:scroll_bar_position_change, :horizontal_scroll_bar, scrollbar_state}, _from, state) do
-    {_, y} = state.scroll_position
-    {x, _} = ScrollBar.new_position(scrollbar_state)
-    state = %{state | scroll_position: {x, y}, scroll_state: :dragging}
-
-    {:continue, {:scroll_bars_position_change, state.id, state}, state}
+  def filter_event({:scroll_bar_button_released, _, scrollbar_state}, _from, state) do
+    state = update_scroll_state(state, scrollbar_state)
+    {:continue, {:scroll_bars_button_released, state.id, state}, state}
   end
 
-  def filter_event({:scroll_bar_scroll_end, _id, _scrollbar_state}, _from, state) do
-    state = %{state | scroll_state: :idle}
+  def filter_event({:scroll_bar_position_change, _, _scrollbar_state}, _from, %{scroll_state: :scrolling} = state) do
+    {:stop, state}
+  end
+
+  def filter_event({:scroll_bar_position_change, _, %{direction: direction} = scrollbar_state}, _from, state) do
+    {x, y} = state.scroll_position
+    ScrollBar.new_position(scrollbar_state)
+    |> Direction.from_vector_2(direction)
+    |> Direction.map_horizontal(&{&1, y})
+    |> Direction.map_vertical(&{x, &1})
+    |> Direction.unwrap
+    |> (&Map.put(state, :scroll_position, &1)).()
+    |> update_scroll_state(scrollbar_state)
+    |> (&{:continue, {:scroll_bars_position_change, &1.id, &1}, &1}).()
+  end
+
+  def filter_event({:scroll_bar_scroll_end, _id, scrollbar_state}, _from, state) do
+    state = update_scroll_state(state, scrollbar_state)
 
     {:continue, {:scroll_bars_scroll_end, state.id, state}, state}
   end
@@ -125,6 +146,10 @@ defmodule Scenic.Scrollable.ScrollBars do
     |> OptionEx.map(fn pid -> GenServer.call(pid, {:update_scroll_position, y}) end)
 
     {:reply, :ok, state}
+  end
+
+  defp update_scroll_state(state, scrollbar_state) do
+    %{state | scroll_state: scrollbar_state.scroll_state}
   end
 
 end
