@@ -35,6 +35,9 @@ defmodule Scenic.Scrollable do
           | {:scroll_fps, number}
           | {:scroll_counter_pressure, number | v2}
           | {:scroll_drag_settings, Drag.drag_settings()}
+          | {:scroll_bar, Scenic.Scrollable.ScrollBar.styles}
+          | {:horizontal_scroll_bar, Scenic.Scrollable.ScrollBar.styles}
+          | {:vertical_scroll_bar, Scenic.Scrollable.ScrollBar.styles}
   # TODO bounce
 
   @type styles :: [style]
@@ -55,7 +58,7 @@ defmodule Scenic.Scrollable do
           fps: number,
           scrolling: scroll_state,
           drag_state: Drag.t(),
-          scroll_bars: ScrollBars.t(),
+          scroll_bars: ScrollBars.t() | %{},
           acceleration: Acceleration.t(),
           hotkeys: Hotkeys.t(),
           position_caps: PositionCap.t(),
@@ -68,7 +71,6 @@ defmodule Scenic.Scrollable do
           content: v2 | rect
         }
 
-  # TODO
   defstruct frame: {0, 0},
             content: {0, 0}
 
@@ -121,15 +123,15 @@ defmodule Scenic.Scrollable do
       scroll_bars: %{} # set by initialize event
     }
     |> init_position_caps
-    |> init_graph(builder)
+    |> init_graph(builder, styles)
     |> ResultEx.return()
   end
 
-  defp init_graph(state, builder) do
+  defp init_graph(state, builder, styles \\ []) do
     state
     |> init_input_capture
     |> init_content(builder)
-    |> init_scroll_bars
+    |> init_scroll_bars(styles)
     |> get_and_push_graph
   end
 
@@ -153,8 +155,8 @@ defmodule Scenic.Scrollable do
     |> (&%{state | graph: &1}).()
   end
 
-  defp init_scroll_bars(%{graph: graph} = state) do
-    update_scroll_bars(graph, state)
+  defp init_scroll_bars(%{graph: graph} = state, styles) do
+    update_scroll_bars(graph, state, styles)
     |> (&%{state | graph: &1}).()
   end
 
@@ -167,6 +169,7 @@ defmodule Scenic.Scrollable do
       new_scrollbar_position = Vector2.sub(state.scroll_position, {state.content.x, state.content.y})
       GenServer.call(pid, {:update_scroll_position, new_scrollbar_position})
     end)
+    |> (fn _ -> state end).()
 
     state
     #    graph
@@ -174,13 +177,17 @@ defmodule Scenic.Scrollable do
     #    |> (&%{state | graph: &1}).()
   end
 
-  defp update_scroll_bars(graph_or_primitive, %{frame: frame} = state) do
+  defp update_scroll_bars(graph_or_primitive, %{frame: frame} = state, styles) do
+    styles = Enum.into(styles, [])
+             |> Keyword.take([:scroll_bar, :horizontal_scroll_bar, :vertical_scroll_bar])
+             |> Keyword.put(:id, :scroll_bars)
+
     scroll_bars(graph_or_primitive, %{
       width: frame.width,
       height: frame.height,
       content_size: {state.content.width, state.content.height},
       scroll_position: Vector2.sub(state.scroll_position, {state.content.x, state.content.y}),
-    }, id: :scroll_bars)
+    }, styles)
   end
 
   @spec update(t) :: t

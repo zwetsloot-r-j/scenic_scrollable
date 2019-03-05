@@ -16,6 +16,12 @@ defmodule Scenic.Scrollable.ScrollBars do
     scroll_position: v2
   }
 
+  @type style :: {:scroll_bar, Scenic.Scrollable.ScrollBar.styles}
+  | {:horizontal_scroll_bar, Scenic.Scrollable.ScrollBar.styles}
+  | {:vertical_scroll_bar, Scenic.Scrollable.ScrollBar.styles}
+
+  @type styles :: [style]
+
   @type scroll_state :: :idle
     | :dragging
     | :scrolling
@@ -24,7 +30,10 @@ defmodule Scenic.Scrollable.ScrollBars do
     id: atom,
     graph: Graph.t,
     scroll_position: v2,
-    scroll_state: scroll_state
+    scroll_state: scroll_state,
+    pid: pid,
+    horizontal_scrollbar_pid: nil | pid,
+    vertical_scrollbar_pid: nil | pid,
   }
 
   @default_id :scroll_bars
@@ -36,7 +45,15 @@ defmodule Scenic.Scrollable.ScrollBars do
 
   def init(settings, opts) do
     styles = opts[:styles] || %{}
-    id = styles[:id] || @default_id
+    id = opts[:id] || @default_id
+    horizontal_bar_styles = (styles[:horizontal_scroll_bar] || styles[:scroll_bar] || [])
+                            |> Keyword.put(:id, :horizontal_scroll_bar)
+                            |> Keyword.put(:translate, {0, settings.height})
+
+    vertical_bar_styles = (styles[:vertical_scroll_bar] || styles[:scroll_bar] || [])
+                          |> Keyword.put(:id, :vertical_scroll_bar)
+                          |> Keyword.put(:translate, {settings.width, 0})
+
     {content_width, content_height} = settings.content_size
     {x, y} = settings.scroll_position
 
@@ -47,14 +64,14 @@ defmodule Scenic.Scrollable.ScrollBars do
               content_size: content_width,
               scroll_position: x,
               direction: :horizontal
-            }, id: :horizontal_scroll_bar, translate: {0, settings.height})
+            }, horizontal_bar_styles)
             |> scroll_bar(%{
               width: @default_thickness,
               height: settings.height,
               content_size: content_height,
               scroll_position: y,
               direction: :vertical
-            }, id: :vertical_scroll_bar, translate: {settings.width, 0})
+            }, vertical_bar_styles)
             |> push_graph
 
     state = %{

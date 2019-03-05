@@ -25,6 +25,18 @@ defmodule Scenic.Scrollable.ScrollBar do
     direction: scroll_direction
   }
 
+  @type mouse_button :: :left
+  | :right
+  | :middle
+
+  @type style :: {:scroll_buttons, boolean} # TODO enable images as buttons
+  | {:scrollbar_theme, %{}} # TODO use Scenic.Theme.t when/if it gets defined
+  | {:scrollbar_mouse_buttons_enabled, [mouse_button]}
+  | {:scrollbar_radius, number}
+  | {:scrollbar_border, number}
+
+  @type styles :: [style]
+
   @type t :: %{
     id: atom,
     graph: Graph.t,
@@ -69,7 +81,7 @@ defmodule Scenic.Scrollable.ScrollBar do
 
   def init(%{width: width, height: height, content_size: content_size, direction: direction} = settings, opts) do
     styles = opts[:styles] || %{}
-    scroll_buttons = opts[:scroll_buttons] || true # TODO make default false and pass as options
+    scroll_buttons = styles[:scroll_buttons] || false
 
     %__MODULE__{
       id: opts[:id] || @default_id,
@@ -141,7 +153,7 @@ defmodule Scenic.Scrollable.ScrollBar do
     end)
     |> update
     |> get_and_push_graph
-    |> (&{:stop, &1}).()
+    |> (&{:noreply, &1}).()
   end
 
   def handle_input({:cursor_pos, position}, %{id: :input_capture}, state) do
@@ -150,7 +162,7 @@ defmodule Scenic.Scrollable.ScrollBar do
       Drag.handle_mouse_move(drag_state, position)
     end)
     |> update
-    |> (&{:stop, &1}).()
+    |> (&{:noreply, &1}).()
   end
 
   def handle_input({:cursor_button, {_button, :release, _, _}}, %{id: :scroll_button_1}, state) do
@@ -161,7 +173,7 @@ defmodule Scenic.Scrollable.ScrollBar do
 
     :ok = send_event({:scroll_bar_button_released, state.id, state})
 
-    {:stop, state}
+    {:noreply, state}
   end
 
   def handle_input({:cursor_button, {_button, :release, _, _}}, %{id: :scroll_button_2}, state) do
@@ -172,7 +184,7 @@ defmodule Scenic.Scrollable.ScrollBar do
 
     :ok = send_event({:scroll_bar_button_released, state.id, state})
 
-    {:stop, state}
+    {:noreply, state}
   end
 
   def handle_input({:cursor_button, {button, :release, _, position}}, %{id: :input_capture}, state) do
@@ -188,7 +200,7 @@ defmodule Scenic.Scrollable.ScrollBar do
       :ok = send_event({:scroll_bar_scroll_end, state.id, state})
       state
     end).()
-    |> (&{:stop, &1}).()
+    |> (&{:noreply, &1}).()
   end
 
   def handle_input({:cursor_button, {_button, :press, _, _}}, %{id: :scroll_button_1}, state) do
@@ -199,7 +211,7 @@ defmodule Scenic.Scrollable.ScrollBar do
 
     :ok = send_event({:scroll_bar_button_pressed, state.id, state})
 
-    {:stop, state}
+    {:noreply, state}
   end
 
   def handle_input({:cursor_button, {_button, :press, _, _}}, %{id: :scroll_button_2}, state) do
@@ -210,13 +222,13 @@ defmodule Scenic.Scrollable.ScrollBar do
 
     :ok = send_event({:scroll_bar_button_pressed, state.id, state})
 
-    {:stop, state}
+    {:noreply, state}
   end
 
   def handle_input({:cursor_button, {_button, :press, _, position}}, _, %{direction: direction} = state) do
     %{state | scrollbar_slider_background: :pressed}
     |> update
-    |> (&{:stop, &1}).()
+    |> (&{:noreply, &1}).()
   end
 
   def handle_input({:cursor_button, {_button, :release, _, position}}, _, %{direction: direction} = state) do
@@ -231,7 +243,7 @@ defmodule Scenic.Scrollable.ScrollBar do
     |> Map.put(:last_scroll_position, state.scroll_position)
     |> Map.put(:scroll_position, scroll_position)
     |> update
-    |> (&{:stop, &1}).()
+    |> (&{:noreply, &1}).()
   end
 
   def handle_input({:cursor_exit, _}, _, state) do
@@ -239,11 +251,11 @@ defmodule Scenic.Scrollable.ScrollBar do
       OptionEx.map(scroll_buttons, &%{&1 | scroll_button_2: :released, scroll_button_1: :released})
     end)
     |> update
-    |> (&{:stop, &1}).()
+    |> (&{:noreply, &1}).()
   end
 
   def handle_input(_event, _, state) do
-    {:stop, state}
+    {:noreply, state}
   end
 
   def handle_call({:update_scroll_position, position}, _, state) do
@@ -540,17 +552,20 @@ defmodule Scenic.Scrollable.ScrollBar do
   defp local_to_world(_, {:vertical, _}), do: {:vertical, 0}
 
   defp local_to_world(state, {x, y}) do
-    {x, y} = PositionCap.cap(state.position_cap, {x, y})
     {local_to_world(state, x), local_to_world(state, y)}
   end
 
   defp local_to_world(_, 0), do: 0
 
-  defp local_to_world(%{direction: :horizontal} = state, x),
-    do: -(x - scroll_button_size(state)) / width_factor(state)
+  defp local_to_world(%{direction: :horizontal} = state, x) do
+    {x, _} = PositionCap.cap(state.position_cap, {x, 0})
+    -(x - scroll_button_size(state)) / width_factor(state)
+  end
 
-  defp local_to_world(%{direction: :vertical} = state, y),
-    do: -(y - scroll_button_size(state)) / height_factor(state)
+  defp local_to_world(%{direction: :vertical} = state, y) do
+    {_, y} = PositionCap.cap(state.position_cap, {0, y})
+    -(y - scroll_button_size(state)) / height_factor(state)
+  end
 
   defp world_to_local(%{direction: direction} = state, {x, y}) do
     position = Direction.from_vector_2({x, y}, direction)
