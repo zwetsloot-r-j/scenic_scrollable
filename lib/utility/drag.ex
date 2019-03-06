@@ -16,7 +16,9 @@ defmodule Scenic.Scrollable.Drag do
   It consists of a list with `t:Scenic.Scrollable.Drag.mouse_button/0`s which specify the buttons with which the user can drag the `Scenic.Scrollable` component.
   By default, drag functionality is disabled.
   """
-  @type drag_settings :: [mouse_button]
+  @type settings :: %{
+    optional(:mouse_buttons) => [mouse_button]
+  }
 
   @typedoc """
   Shorthand for `t:Scenic.Math.vector_2/0`.
@@ -51,17 +53,19 @@ defmodule Scenic.Scrollable.Drag do
   @drag_stop_speed_amplifier 3
 
   @doc """
-  Initialize the `t:Scenic.Scrollable.Drag.t/0` state by passing in the `t:Scenic.Scrollable.Drag.drag_settings/0` settings object.
+  Initialize the `t:Scenic.Scrollable.Drag.t/0` state by passing in the `t:Scenic.Scrollable.Drag.settings/0` settings object.
   When nil is passed, the default settings will be used.
   """
-  @spec init(nil | drag_settings) :: t
+  @spec init(nil | settings) :: t
   def init(nil) do
     %__MODULE__{}
   end
 
-  def init(drag_settings) do
+  def init(settings) do
+    enabled_buttons = settings[:mouse_buttons] || []
+
     %__MODULE__{
-      enabled_buttons: drag_settings
+      enabled_buttons: enabled_buttons
     }
   end
 

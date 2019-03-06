@@ -30,10 +30,11 @@ defmodule Scenic.Scrollable.ScrollBar do
   | :middle
 
   @type style :: {:scroll_buttons, boolean} # TODO enable images as buttons
-  | {:scrollbar_theme, %{}} # TODO use Scenic.Theme.t when/if it gets defined
-  | {:scrollbar_mouse_buttons_enabled, [mouse_button]}
-  | {:scrollbar_radius, number}
-  | {:scrollbar_border, number}
+  | {:scroll_bar_theme, %{}} # TODO use Scenic.Theme.t when/if it gets defined
+  | {:scroll_bar_mouse_buttons_enabled, [mouse_button]}
+  | {:scroll_bar_radius, number}
+  | {:scroll_bar_border, number}
+  | {:scroll_drag, Drag.settings}
 
   @type styles :: [style]
 
@@ -53,7 +54,7 @@ defmodule Scenic.Scrollable.ScrollBar do
       scroll_button_1: :pressed | :released,
       scroll_button_2: :pressed | :released
     }} | :none,
-    scrollbar_slider_background: :pressed | :released,
+    scroll_bar_slider_background: :pressed | :released,
     scroll_state: :idle | :scrolling | :dragging,
     pid: pid
   }
@@ -70,8 +71,9 @@ defmodule Scenic.Scrollable.ScrollBar do
     drag_state: %{},
     position_cap: %{},
     scroll_buttons: :none,
-    scrollbar_slider_background: :released,
+    scroll_bar_slider_background: :released,
     scroll_state: :idle,
+    styles: [],
     pid: nil
 
   @default_drag_settings [:left, :right, :middle]
@@ -91,11 +93,12 @@ defmodule Scenic.Scrollable.ScrollBar do
       scroll_position: Direction.return(settings.scroll_position, direction),
       last_scroll_position: Direction.return(settings.scroll_position, direction),
       direction: direction,
-      drag_state: Drag.init(styles[:scroll_drag_settings] || @default_drag_settings),
+      drag_state: Drag.init(styles[:scroll_drag] || @default_drag_settings),
       scroll_buttons: OptionEx.from_bool(scroll_buttons, %{
         scroll_button_1: :released,
         scroll_button_2: :released
       }),
+      styles: styles,
       pid: self()
     }
     |> init_size(width, height)
@@ -142,7 +145,7 @@ defmodule Scenic.Scrollable.ScrollBar do
     scroll_position_vector2(state)
   end
 
-  def handle_input({:cursor_button, {button, :press, _, position}}, %{id: :scrollbar_slider_drag_control}, state) do
+  def handle_input({:cursor_button, {button, :press, _, position}}, %{id: :scroll_bar_slider_drag_control}, state) do
     state
     |> Map.update!(:drag_state, fn drag_state ->
       Drag.handle_mouse_click(drag_state, button, position, local_scroll_position_vector2(state))
@@ -226,7 +229,7 @@ defmodule Scenic.Scrollable.ScrollBar do
   end
 
   def handle_input({:cursor_button, {_button, :press, _, position}}, _, %{direction: direction} = state) do
-    %{state | scrollbar_slider_background: :pressed}
+    %{state | scroll_bar_slider_background: :pressed}
     |> update
     |> (&{:noreply, &1}).()
   end
@@ -239,7 +242,7 @@ defmodule Scenic.Scrollable.ScrollBar do
     scroll_position = local_to_world(state, scroll_position)
 
     state
-    |> Map.put(:scrollbar_slider_background, :released)
+    |> Map.put(:scroll_bar_slider_background, :released)
     |> Map.put(:last_scroll_position, state.scroll_position)
     |> Map.put(:scroll_position, scroll_position)
     |> update
@@ -314,7 +317,7 @@ defmodule Scenic.Scrollable.ScrollBar do
   end
 
   defp update_graph_drag_control_position(state) do
-    update_graph_component(state, :scrollbar_slider_drag_control, fn primitive ->
+    update_graph_component(state, :scroll_bar_slider_drag_control, fn primitive ->
       Map.update(primitive, :transforms, %{}, fn transforms ->
         Map.put(transforms, :translate, local_scroll_position_vector2(state))
       end)
@@ -392,24 +395,22 @@ defmodule Scenic.Scrollable.ScrollBar do
     width = Direction.unwrap(state.width)
     height = Direction.unwrap(state.height)
 
-    # TODO pass as options
-    drag_control_theme = Theme.preset(:light)
-    bg_theme = Theme.preset(:dark)
+    theme = state.styles[:scroll_bar_theme] || Theme.preset(:light)
 
     Map.update!(state, :graph, fn graph ->
       graph
       |> rrect(
         {width, height, @default_button_radius},
-        id: :scrollbar_slider_background,
-        fill: bg_theme.background,
-        stroke: {@default_stroke_size, bg_theme.border},
+        id: :scroll_bar_slider_background,
+        fill: theme.border,
+        stroke: {@default_stroke_size, theme.background},
         translate: Direction.to_vector_2(scroll_bar_displacement(state))
       )
       |> rrect(
         {button_width(state), button_height(state), @default_button_radius},
-        id: :scrollbar_slider_drag_control,
+        id: :scroll_bar_slider_drag_control,
         translate: local_scroll_position_vector2(state),
-        fill: drag_control_theme.background
+        fill: theme.background
       )
       |> rect({0, 0}, id: :input_capture)
     end)
@@ -418,28 +419,26 @@ defmodule Scenic.Scrollable.ScrollBar do
   end
 
   def update_control_colors(state) do
-    # TODO pass as options
-    drag_control_theme = Theme.preset(:light)
-    bg_theme = Theme.preset(:dark)
+    theme = state.styles[:scroll_bar_theme] || Theme.preset(:light)
 
     drag_control_color = Drag.dragging?(state.drag_state)
-                         |> OptionEx.from_bool(drag_control_theme.active)
-                         |> OptionEx.or_else(drag_control_theme.background)
+                         |> OptionEx.from_bool(theme.active)
+                         |> OptionEx.or_else(theme.background)
 
-    scrollbar_slider_background_color = OptionEx.from_bool(state.scrollbar_slider_background == :pressed, bg_theme.active)
-                                        |> OptionEx.or_else(bg_theme.background)
+    scroll_bar_slider_background_color = OptionEx.from_bool(state.scroll_bar_slider_background == :pressed, theme.text)
+                                        |> OptionEx.or_else(theme.border)
 
     graph = state.graph
-            |> Graph.modify(:scrollbar_slider_drag_control, &Primitive.put_style(&1, :fill, drag_control_color))
-            |> Graph.modify(:scrollbar_slider_background, &Primitive.put_style(&1, :fill, scrollbar_slider_background_color))
+            |> Graph.modify(:scroll_bar_slider_drag_control, &Primitive.put_style(&1, :fill, drag_control_color))
+            |> Graph.modify(:scroll_bar_slider_background, &Primitive.put_style(&1, :fill, scroll_bar_slider_background_color))
 
     graph = state.scroll_buttons
             |> OptionEx.map(fn scroll_buttons ->
-              button1_color = OptionEx.from_bool(scroll_buttons.scroll_button_1 == :pressed, drag_control_theme.active)
-                              |> OptionEx.or_else(drag_control_theme.background)
+              button1_color = OptionEx.from_bool(scroll_buttons.scroll_button_1 == :pressed, theme.active)
+                              |> OptionEx.or_else(theme.background)
 
-              button2_color = OptionEx.from_bool(scroll_buttons.scroll_button_2 == :pressed, drag_control_theme.active)
-                              |> OptionEx.or_else(drag_control_theme.background)
+              button2_color = OptionEx.from_bool(scroll_buttons.scroll_button_2 == :pressed, theme.active)
+                              |> OptionEx.or_else(theme.background)
 
               graph
               |> Graph.modify(:scroll_button_1, &Primitive.put_style(&1, :fill, button1_color))
@@ -452,8 +451,7 @@ defmodule Scenic.Scrollable.ScrollBar do
 
   defp init_scroll_buttons(%{scroll_buttons: :none} = state), do: state
   defp init_scroll_buttons(%{graph: graph, direction: direction} = state) do
-    # TODO pass as options
-    theme = Theme.preset(:light)
+    theme = state.styles[:scroll_bar_theme] || Theme.preset(:light)
 
     {btn1_text, btn2_text} = Direction.return({"", ""}, direction)
                              |> Direction.map_horizontal(fn {left, right} -> {left <> "<", right <> ">"} end)
@@ -477,7 +475,7 @@ defmodule Scenic.Scrollable.ScrollBar do
     |> text(
       btn1_text,
       font_size: 15,
-      fill: :black,
+      fill: theme.text,
       translate: {size * 0.5, size * 1},
       text_align: :center
     )
@@ -490,7 +488,7 @@ defmodule Scenic.Scrollable.ScrollBar do
     |> text(
       btn2_text,
       font_size: 15,
-      fill: :black,
+      fill: theme.text,
       translate: Vector2.add(button_2_position, {size * 0.5, size * 1}),
       text_align: :center
     )

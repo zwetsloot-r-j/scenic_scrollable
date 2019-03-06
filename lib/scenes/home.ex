@@ -2,6 +2,7 @@ defmodule ScenicScrollable.Scene.Home do
   use Scenic.Scene
 
   alias Scenic.Graph
+  alias Scenic.Primitive.Style.Theme
   import Scenic.Scrollable.Components, only: [scrollable: 4]
   import Scenic.Components, only: [button: 3]
 
@@ -97,8 +98,9 @@ defmodule ScenicScrollable.Scene.Home do
       translate: {10, 10},
       scroll_position: {0, 0},
       scroll_hotkeys: %{up: "w", down: "s", left: "d", right: "a"},
-      scroll_drag_settings: [:left],
-      scroll_bar: [scroll_buttons: true]
+      scroll_drag: %{mouse_buttons: [:left]},
+      vertical_scroll_bar: [scroll_buttons: true, scroll_bar_theme: Theme.preset(:light)],
+      horizontal_scroll_bar: [scroll_buttons: false, scroll_bar_theme: Theme.preset(:danger)]
     )
     #    |> group(fn graph ->
     #      graph

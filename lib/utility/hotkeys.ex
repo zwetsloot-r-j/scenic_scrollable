@@ -14,7 +14,7 @@ defmodule Scenic.Scrollable.Hotkeys do
   The hotkey settings which can be passed in as style when creating a scrollable component.
   Hotkeys are optional and available for 'up', 'down', 'left' and 'right' scroll movements.
   """
-  @type hotkey_settings :: %{
+  @type settings :: %{
           optional(:up) => keycode,
           optional(:down) => keycode,
           optional(:left) => keycode,
@@ -70,20 +70,20 @@ defmodule Scenic.Scrollable.Hotkeys do
             }
 
   @doc """
-  Initialize the state this module acts upon, by passing it the `t:Scenic.Scrollable.Hotkeys.hotkey_settings/0` settings map.
+  Initialize the state this module acts upon, by passing it the `t:Scenic.Scrollable.Hotkeys.settings/0` settings map.
   When nil is passed as argument, the default settings will be used.
   Returns a `t:Scenic.Scrollable.Hotkeys.t/0`.
   """
-  @spec init(hotkey_settings | nil) :: t
+  @spec init(settings | nil) :: t
   def init(nil), do: %__MODULE__{}
 
-  def init(hotkey_settings) do
+  def init(settings) do
     %__MODULE__{
       key_map: %{
-        up: parse_keycode(hotkey_settings[:up]),
-        down: parse_keycode(hotkey_settings[:down]),
-        left: parse_keycode(hotkey_settings[:left]),
-        right: parse_keycode(hotkey_settings[:right])
+        up: parse_keycode(settings[:up]),
+        down: parse_keycode(settings[:down]),
+        left: parse_keycode(settings[:left]),
+        right: parse_keycode(settings[:right])
       }
     }
   end
@@ -152,7 +152,7 @@ defmodule Scenic.Scrollable.Hotkeys do
     %{state | key_pressed_states: Map.put(state.key_pressed_states, key, :released)}
   end
 
-  # Converts a keycode passed in as `t:Scrollable.Hotkeys.hotkey_settings` to conform to the `Scenic` key press event key naming,
+  # Converts a keycode passed in as `t:Scrollable.Hotkeys.settings` to conform to the `Scenic` key press event key naming,
   # and wraps it in an `t:OptionEx.t` for internal use.
   @spec parse_keycode(keycode) :: {:some, keycode} | :none
   defp parse_keycode(keycode) do

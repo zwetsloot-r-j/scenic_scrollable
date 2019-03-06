@@ -19,7 +19,7 @@ defmodule Scenic.Scrollable.Acceleration do
   - mass: 1
   - counter_pressure: 0.1
   """
-  @type acceleration_settings :: %{
+  @type settings :: %{
     optional(:acceleration) => number,
     optional(:mass) => number,
     optional(:counter_pressure) => number
@@ -46,14 +46,14 @@ defmodule Scenic.Scrollable.Acceleration do
   @speed_to_distance_factor 0.1
 
   @doc """
-  Initializes a `t:Scenic.Scrollable.Acceleration.t` state object based on the passed `t:Scenic.Scrollable.Acceleration.acceleration_settings/0`.
+  Initializes a `t:Scenic.Scrollable.Acceleration.t` state object based on the passed `t:Scenic.Scrollable.Acceleration.settings/0`.
   When nil is passed, the default settings will be used.
   """
-  @spec init(acceleration_settings) :: t
+  @spec init(settings) :: t
   def init(nil), do: %__MODULE__{}
 
-  def init(acceleration_settings) do
-    Enum.reduce(acceleration_settings, %__MODULE__{}, fn {key, value}, state ->
+  def init(settings) do
+    Enum.reduce(settings, %__MODULE__{}, fn {key, value}, state ->
       Map.put(state, key, value)
     end)
   end
