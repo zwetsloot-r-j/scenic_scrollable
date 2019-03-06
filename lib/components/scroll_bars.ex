@@ -27,7 +27,7 @@ defmodule Scenic.Scrollable.ScrollBars do
     | :dragging
     | :scrolling
 
-  @type t :: %{
+  @type t :: %__MODULE__{
     id: atom,
     graph: Graph.t,
     scroll_position: v2,
@@ -37,13 +37,43 @@ defmodule Scenic.Scrollable.ScrollBars do
     vertical_scroll_bar_pid: {:some, pid} | :none,
   }
 
+  defstruct id: :scroll_bars,
+    graph: Graph.build(),
+    scroll_position: {0, 0},
+    scroll_state: :idle,
+    pid: nil,
+    horizontal_scroll_bar_pid: :none,
+    vertical_scroll_bar_pid: :none
+
   @default_id :scroll_bars
   @default_thickness 10
 
-  def verify(%{content_size: _, scroll_position: _} = state), do: {:ok, state}
+  # PUBLIC API
 
-  def verify(_), do: :invalid_input
+  @spec direction(t) :: v2
+  def direction(state) do
+    {x, _} = state.horizontal_scroll_bar_pid
+             |> OptionEx.map(&ScrollBar.direction/1)
+             |> OptionEx.or_else({0, 0})
 
+    {_, y} = state.vertical_scroll_bar_pid
+             |> OptionEx.map(&ScrollBar.direction/1)
+             |> OptionEx.or_else({0, 0})
+
+    {x, y}
+  end
+
+  @spec dragging?(t) :: boolean
+  def dragging?(%{scroll_state: :dragging}), do: true
+
+  def dragging?(_), do: false
+
+  @spec new_position(t) :: {:some, v2} | :none
+  def new_position(%{scroll_position: position}), do: {:some, position}
+
+  # CALLBACKS
+
+  @impl Scenic.Scene
   def init(settings, opts) do
     id = opts[:id] || @default_id
     styles = Enum.into(opts[:styles] || %{}, [])
@@ -94,37 +124,32 @@ defmodule Scenic.Scrollable.ScrollBars do
 
     push_graph(graph)
 
-    state = %{
+    state = %__MODULE__{
       id: id,
       graph: graph,
       scroll_position: {x, y},
-      scroll_state: :idle,
       pid: self(),
-      horizontal_scroll_bar_pid: :none,
-      vertical_scroll_bar_pid: :none
     }
 
     {send_event({:scroll_bars_initialized, state.id, state}), state}
   end
 
-  def direction(state) do
-    {x, _} = state.horizontal_scroll_bar_pid
-             |> OptionEx.map(&ScrollBar.direction/1)
-             |> OptionEx.or_else({0, 0})
-
-    {_, y} = state.vertical_scroll_bar_pid
-             |> OptionEx.map(&ScrollBar.direction/1)
-             |> OptionEx.or_else({0, 0})
-
-    {x, y}
+  @impl Scenic.Component
+  def verify(%{
+    content_size: {content_x, content_y},
+    scroll_position: {x, y}
+  } = settings)
+    when is_number(content_x)
+    and is_number(content_y)
+    and is_number(x)
+    and is_number(y)
+  do
+    {:ok, settings}
   end
 
-  def dragging?(%{scroll_state: :dragging}), do: true
+  def verify(_), do: :invalid_input
 
-  def dragging?(_), do: false
-
-  def new_position(%{scroll_position: position}), do: {:some, position}
-
+  @impl Scenic.Scene
   def filter_event({:scroll_bar_initialized, :horizontal_scroll_bar, scroll_bar_state}, _from, state) do
     {:stop, %{state | horizontal_scroll_bar_pid: OptionEx.return(scroll_bar_state.pid)}}
   end
@@ -170,6 +195,9 @@ defmodule Scenic.Scrollable.ScrollBars do
     {:stop, state}
   end
 
+  # no callback on the `Scenic.Scene` and no GenServer @behaviour, so impl will not work
+  @spec handle_call(request :: term(), GenServer.from(), state :: term()) ::
+    {:reply, reply :: term(), new_state :: term()}
   def handle_call({:update_scroll_position, {x, y}}, _, state) do
     state = %{state | scroll_position: {x, y}}
 
@@ -183,6 +211,9 @@ defmodule Scenic.Scrollable.ScrollBars do
     {:reply, :ok, state}
   end
 
+  # UTILITY
+
+  @spec update_scroll_state(t, ScrollBar.t) :: t
   defp update_scroll_state(state, scroll_bar_state) do
     %{state | scroll_state: scroll_bar_state.scroll_state}
   end
