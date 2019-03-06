@@ -17,8 +17,8 @@ defmodule Scenic.Scrollable.Drag do
   By default, drag functionality is disabled.
   """
   @type settings :: %{
-    optional(:mouse_buttons) => [mouse_button]
-  }
+          optional(:mouse_buttons) => [mouse_button]
+        }
 
   @typedoc """
   Shorthand for `t:Scenic.Math.vector_2/0`.

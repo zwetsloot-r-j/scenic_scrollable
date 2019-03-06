@@ -1,10 +1,9 @@
 defmodule Scenic.Scrollable.Direction do
-
   @type direction :: :horizontal | :vertical
 
   @type t :: {:horizontal, term} | {:vertical, term}
 
-  @type v2 :: Scenic.Scrollable.v2
+  @type v2 :: Scenic.Scrollable.v2()
 
   @spec return(term, direction) :: t
   def return(x, :horizontal), do: {:horizontal, x}
@@ -33,30 +32,47 @@ defmodule Scenic.Scrollable.Direction do
   def invert({:vertical, x}), do: {:horizontal, x}
 
   @spec add(t, t) :: t
-  def add({:horizontal, x}, {:horizontal, y}) when is_number(x) and is_number(y), do: {:horizontal, x + y}
-  def add({:vertical, x}, {:vertical, y}) when is_number(x) and is_number(y), do: {:vertical, x + y}
+  def add({:horizontal, x}, {:horizontal, y}) when is_number(x) and is_number(y),
+    do: {:horizontal, x + y}
+
+  def add({:vertical, x}, {:vertical, y}) when is_number(x) and is_number(y),
+    do: {:vertical, x + y}
+
   def add({:horizontal, x}, _), do: {:horizontal, x}
   def add({:vertical, x}, _), do: {:vertical, x}
 
   @spec subtract(t, t) :: t
-  def subtract({:horizontal, x}, {:horizontal, y}) when is_number(x) and is_number(y), do: {:horizontal, x - y}
-  def subtract({:vertical, x}, {:vertical, y}) when is_number(x) and is_number(y), do: {:vertical, x - y}
+  def subtract({:horizontal, x}, {:horizontal, y}) when is_number(x) and is_number(y),
+    do: {:horizontal, x - y}
+
+  def subtract({:vertical, x}, {:vertical, y}) when is_number(x) and is_number(y),
+    do: {:vertical, x - y}
+
   def subtract({:horizontal, x}, _), do: {:horizontal, x}
   def subtract({:vertical, x}, _), do: {:vertical, x}
 
   @spec multiply(t, t) :: t
-  def multiply({:horizontal, x}, {:horizontal, y}) when is_number(x) and is_number(y), do: {:horizontal, x * y}
-  def multiply({:vertical, x}, {:vertical, y}) when is_number(x) and is_number(y), do: {:vertical, x * y}
+  def multiply({:horizontal, x}, {:horizontal, y}) when is_number(x) and is_number(y),
+    do: {:horizontal, x * y}
+
+  def multiply({:vertical, x}, {:vertical, y}) when is_number(x) and is_number(y),
+    do: {:vertical, x * y}
+
   def multiply({:horizontal, x}, _), do: {:horizontal, x}
   def multiply({:vertical, x}, _), do: {:vertical, x}
+
   def multiply(x, y, z) do
     multiply(x, y)
     |> multiply(z)
   end
 
   @spec divide(t, t) :: t
-  def divide({:horizontal, x}, {:horizontal, y}) when is_number(x) and is_number(y), do: {:horizontal, x / y}
-  def divide({:vertical, x}, {:vertical, y}) when is_number(x) and is_number(y), do: {:vertical, x / y}
+  def divide({:horizontal, x}, {:horizontal, y}) when is_number(x) and is_number(y),
+    do: {:horizontal, x / y}
+
+  def divide({:vertical, x}, {:vertical, y}) when is_number(x) and is_number(y),
+    do: {:vertical, x / y}
+
   def divide({:horizontal, x}, _), do: {:horizontal, x}
   def divide({:vertical, x}, _), do: {:vertical, x}
 
@@ -70,5 +86,4 @@ defmodule Scenic.Scrollable.Direction do
 
   @spec map(t, (term -> term)) :: t
   def map({direction, value}, fun), do: {direction, fun.(value)}
-
 end

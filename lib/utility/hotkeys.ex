@@ -121,7 +121,7 @@ defmodule Scenic.Scrollable.Hotkeys do
   Obtain the current scroll direction based on the keys currently being pressed as a `t:Scenic.Math.vector_2`.
   For example, when the 'left' key and the 'up' key are currently being pressed, the vector {-1, 1} describing the corresponding direction will be returned.
   """
-  @spec direction(t) :: Scenic.Math.vector_2
+  @spec direction(t) :: Scenic.Math.vector_2()
   def direction(%{key_pressed_states: pressed_states}) do
     x =
       case pressed_states do

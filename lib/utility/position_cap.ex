@@ -2,22 +2,22 @@ defmodule Scenic.Scrollable.PositionCap do
   alias Scenic.Scrollable.Direction
   alias __MODULE__
 
-  @type v2 :: Scenic.Scrollable.v2
+  @type v2 :: Scenic.Scrollable.v2()
 
   @type cap :: v2 | {:horizontal, number} | {:vertical, number}
 
   @type settings :: %{
-    optional(:max) => cap,
-    optional(:min) => cap
-  }
+          optional(:max) => cap,
+          optional(:min) => cap
+        }
 
   @type t :: %PositionCap{
-    max: {:some, cap} | :none,
-    min: {:some, cap} | :none
-  }
+          max: {:some, cap} | :none,
+          min: {:some, cap} | :none
+        }
 
   defstruct max: :none,
-    min: :none
+            min: :none
 
   @spec init(settings) :: t
   def init(settings) do
@@ -28,7 +28,7 @@ defmodule Scenic.Scrollable.PositionCap do
   end
 
   @spec cap(t, v2) :: v2
-  def cap(%{min: min, max: max}, coordinate) do 
+  def cap(%{min: min, max: max}, coordinate) do
     coordinate
     |> floor(min)
     |> ceil(max)
@@ -51,5 +51,4 @@ defmodule Scenic.Scrollable.PositionCap do
   defp ceil({x, y}, {:some, {:vertical, max_y}}), do: {x, min(y, max_y)}
 
   defp ceil({x, y}, {:some, {max_x, max_y}}), do: {min(x, max_x), min(y, max_y)}
-
 end

@@ -20,10 +20,10 @@ defmodule Scenic.Scrollable.Acceleration do
   - counter_pressure: 0.1
   """
   @type settings :: %{
-    optional(:acceleration) => number,
-    optional(:mass) => number,
-    optional(:counter_pressure) => number
-  }
+          optional(:acceleration) => number,
+          optional(:mass) => number,
+          optional(:counter_pressure) => number
+        }
 
   @typedoc """
   Data structure with the necessary values to calculate the current scroll speed.

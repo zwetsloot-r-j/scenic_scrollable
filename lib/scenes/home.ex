@@ -93,7 +93,8 @@ defmodule ScenicScrollable.Scene.Home do
       fn graph ->
         text(graph, @note)
         |> button("ok", translate: {25, 2000})
-#        |> rect({150, 100}, translate: {25, 50}, fill: :red)
+
+        #        |> rect({150, 100}, translate: {25, 50}, fill: :red)
       end,
       translate: {10, 10},
       scroll_position: {0, 0},

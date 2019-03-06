@@ -34,9 +34,9 @@ defmodule Scenic.Scrollable do
           | {:scroll_hotkeys, Hotkeys.settings()}
           | {:scroll_fps, number}
           | {:scroll_drag, Drag.settings()}
-          | {:scroll_bar, Scenic.Scrollable.ScrollBar.styles}
-          | {:horizontal_scroll_bar, Scenic.Scrollable.ScrollBar.styles}
-          | {:vertical_scroll_bar, Scenic.Scrollable.ScrollBar.styles}
+          | {:scroll_bar, Scenic.Scrollable.ScrollBar.styles()}
+          | {:horizontal_scroll_bar, Scenic.Scrollable.ScrollBar.styles()}
+          | {:vertical_scroll_bar, Scenic.Scrollable.ScrollBar.styles()}
   # TODO bounce
 
   @type styles :: [style]
@@ -71,18 +71,18 @@ defmodule Scenic.Scrollable do
         }
 
   defstruct graph: Graph.build(),
-    frame: %{x: 0, y: 0, width: 0, height: 0},
-    content: %{x: 0, y: 0, width: 0, height: 0},
-    scroll_position: {0, 0},
-    fps: 30,
-    scrolling: :idle,
-    drag_state: %Drag{},
-    scroll_bars: :none,
-    acceleration: %Acceleration{},
-    hotkeys: %Hotkeys{},
-    position_caps: %PositionCap{},
-    focused: false,
-    animating: false
+            frame: %{x: 0, y: 0, width: 0, height: 0},
+            content: %{x: 0, y: 0, width: 0, height: 0},
+            scroll_position: {0, 0},
+            fps: 30,
+            scrolling: :idle,
+            drag_state: %Drag{},
+            scroll_bars: :none,
+            acceleration: %Acceleration{},
+            hotkeys: %Hotkeys{},
+            position_caps: %PositionCap{},
+            focused: false,
+            animating: false
 
   @default_scroll_position {0, 0}
 
@@ -127,7 +127,7 @@ defmodule Scenic.Scrollable do
       fps: styles[:fps] || @default_fps,
       acceleration: Acceleration.init(styles[:scroll_acceleration]),
       hotkeys: Hotkeys.init(styles[:scroll_hotkeys]),
-      drag_state: Drag.init(styles[:scroll_drag]),
+      drag_state: Drag.init(styles[:scroll_drag])
     }
     |> init_position_caps
     |> init_graph(builder, styles)
@@ -212,13 +212,17 @@ defmodule Scenic.Scrollable do
     {:noreply, state}
   end
 
-  @impl(Scenic.Scene)
+  @impl Scenic.Scene
   def filter_event({:scroll_bars_initialized, _id, scroll_bars_state}, _from, state) do
     %{state | scroll_bars: OptionEx.return(scroll_bars_state)}
     |> (&{:stop, &1}).()
   end
 
-  def filter_event({:scroll_bars_position_change, _id, %{scroll_state: :idle} = scroll_bars_state}, _from, state) do
+  def filter_event(
+        {:scroll_bars_position_change, _id, %{scroll_state: :idle} = scroll_bars_state},
+        _from,
+        state
+      ) do
     # TODO move this position update to apply force?
     ScrollBars.new_position(scroll_bars_state)
     |> OptionEx.map(&Vector2.add(&1, {state.content.x, state.content.y}))
@@ -258,8 +262,7 @@ defmodule Scenic.Scrollable do
   end
 
   # no callback on the `Scenic.Scene` and no GenServer @behaviour, so impl will not work
-  @spec handle_info(request :: term(), state :: term()) ::
-    {:noreply, state :: term()}
+  @spec handle_info(request :: term(), state :: term()) :: {:noreply, state :: term()}
   def handle_info(:tick, state) do
     %{state | animating: false}
     |> update
@@ -268,7 +271,7 @@ defmodule Scenic.Scrollable do
 
   # INITIALIZERS
 
-  @spec init_graph(t, (Graph.t -> Graph.t), styles) :: t
+  @spec init_graph(t, (Graph.t() -> Graph.t()), styles) :: t
   defp init_graph(state, builder, styles) do
     state
     |> init_input_capture
@@ -284,14 +287,17 @@ defmodule Scenic.Scrollable do
     |> (&%{state | graph: &1}).()
   end
 
-  @spec init_content(t, (Graph.t -> Graph.t)) :: t
+  @spec init_content(t, (Graph.t() -> Graph.t())) :: t
   defp init_content(%{graph: graph, frame: frame, content: content} = state, builder) do
     # MEMO: stacking up groups and scenes will result in reaching the cap prety fast when nesting scrollable elements
     group(
       graph,
       fn graph ->
         graph
-        |> group(builder, id: :content, translate: Vector2.add(state.scroll_position, {content.x, content.y}))
+        |> group(builder,
+          id: :content,
+          translate: Vector2.add(state.scroll_position, {content.x, content.y})
+        )
       end,
       scissor: {frame.width, frame.height},
       translate: {frame.x, frame.y}
@@ -305,10 +311,12 @@ defmodule Scenic.Scrollable do
   end
 
   @spec init_position_caps(t) :: t
-  defp init_position_caps(%{
-    frame: %{width: frame_width, height: frame_height},
-    content: %{x: x, y: y, width: content_width, height: content_height}
-  } = state) do
+  defp init_position_caps(
+         %{
+           frame: %{width: frame_width, height: frame_height},
+           content: %{x: x, y: y, width: content_width, height: content_height}
+         } = state
+       ) do
     min = {x + frame_width - content_width, y + frame_height - content_height}
     max = {x, y}
 
@@ -336,29 +344,36 @@ defmodule Scenic.Scrollable do
     state.scroll_bars
     |> OptionEx.map(& &1.pid)
     |> OptionEx.map(fn pid ->
-      new_scroll_bar_position = Vector2.sub(state.scroll_position, {state.content.x, state.content.y})
+      new_scroll_bar_position =
+        Vector2.sub(state.scroll_position, {state.content.x, state.content.y})
+
       GenServer.call(pid, {:update_scroll_position, new_scroll_bar_position})
     end)
 
     state
   end
 
-  @spec update_scroll_bars(Graph.t | Primitive.t, t, styles) :: t
+  @spec update_scroll_bars(Graph.t() | Primitive.t(), t, styles) :: t
   defp update_scroll_bars(graph_or_primitive, %{frame: frame} = state, styles) do
-    styles = Enum.into(styles, [])
-             |> Keyword.take([:scroll_bar, :horizontal_scroll_bar, :vertical_scroll_bar, :scroll_drag])
-             |> Keyword.put(:id, :scroll_bars)
+    styles =
+      Enum.into(styles, [])
+      |> Keyword.take([:scroll_bar, :horizontal_scroll_bar, :vertical_scroll_bar, :scroll_drag])
+      |> Keyword.put(:id, :scroll_bars)
 
     OptionEx.return(styles[:scroll_bar])
     |> OptionEx.or_try(fn -> OptionEx.return(styles[:horizontal_scroll_bar]) end)
     |> OptionEx.or_try(fn -> OptionEx.return(styles[:vertical_scroll_bar]) end)
     |> OptionEx.map(fn _ ->
-      scroll_bars(graph_or_primitive, %{
-        width: frame.width,
-        height: frame.height,
-        content_size: {state.content.width, state.content.height},
-        scroll_position: Vector2.sub(state.scroll_position, {state.content.x, state.content.y}),
-      }, styles)
+      scroll_bars(
+        graph_or_primitive,
+        %{
+          width: frame.width,
+          height: frame.height,
+          content_size: {state.content.width, state.content.height},
+          scroll_position: Vector2.sub(state.scroll_position, {state.content.x, state.content.y})
+        },
+        styles
+      )
     end)
     |> OptionEx.or_else(graph_or_primitive)
     |> (&%{state | graph: &1}).()
@@ -404,7 +419,9 @@ defmodule Scenic.Scrollable do
     state.scroll_bars
     |> OptionEx.bind(&OptionEx.from_bool(ScrollBars.dragging?(&1), &1))
     |> OptionEx.bind(&ScrollBars.new_position/1)
-    |> OptionEx.map(fn new_position -> Vector2.add(new_position, {state.content.x, state.content.y}) end)
+    |> OptionEx.map(fn new_position ->
+      Vector2.add(new_position, {state.content.x, state.content.y})
+    end)
     |> OptionEx.or_try(fn ->
       OptionEx.from_bool(Drag.dragging?(state.drag_state), state.drag_state)
       |> OptionEx.bind(&Drag.new_position/1)
@@ -445,8 +462,7 @@ defmodule Scenic.Scrollable do
   defp verify_idle_state(state) do
     result =
       Hotkeys.direction(state.hotkeys) == {0, 0} and not Drag.dragging?(state.drag_state) and
-        (get_scroll_bars_direction(state) == {0, 0}) and
-        not scroll_bars_dragging?(state) and
+        get_scroll_bars_direction(state) == {0, 0} and not scroll_bars_dragging?(state) and
         Acceleration.is_stationary?(state.acceleration)
 
     OptionEx.from_bool(result, :idle)
@@ -472,8 +488,7 @@ defmodule Scenic.Scrollable do
   defp verify_cooling_down_state(state) do
     result =
       Hotkeys.direction(state.hotkeys) == {0, 0} and not Drag.dragging?(state.drag_state) and
-        (get_scroll_bars_direction(state) == {0, 0}) and
-        not scroll_bars_dragging?(state) and
+        get_scroll_bars_direction(state) == {0, 0} and not scroll_bars_dragging?(state) and
         not Acceleration.is_stationary?(state.acceleration)
 
     OptionEx.from_bool(result, :cooling_down)
@@ -490,7 +505,7 @@ defmodule Scenic.Scrollable do
     Map.update!(state, :acceleration, &Acceleration.set_speed(&1, speed))
   end
 
-  @spec capture_focus(t, Context.t) :: t
+  @spec capture_focus(t, Context.t()) :: t
   defp capture_focus(%{focused: false} = state, context) do
     ViewPort.capture_input(context, :key)
 
@@ -499,7 +514,7 @@ defmodule Scenic.Scrollable do
 
   defp capture_focus(state, _), do: state
 
-  @spec release_focus(t, Context.t) :: t
+  @spec release_focus(t, Context.t()) :: t
   defp release_focus(%{focused: true} = state, context) do
     ViewPort.release_input(context, :key)
 
@@ -536,10 +551,12 @@ defmodule Scenic.Scrollable do
   @spec get_scroll_bars_direction(t) :: v2
   defp get_scroll_bars_direction(%{scroll_bars: :none}), do: {0, 0}
 
-  defp get_scroll_bars_direction(%{scroll_bars: {:some, scroll_bars}}), do: ScrollBars.direction(scroll_bars)
+  defp get_scroll_bars_direction(%{scroll_bars: {:some, scroll_bars}}),
+    do: ScrollBars.direction(scroll_bars)
 
   @spec scroll_bars_dragging?(t) :: boolean
   defp scroll_bars_dragging?(%{scroll_bars: :none}), do: false
 
-  defp scroll_bars_dragging?(%{scroll_bars: {:some, scroll_bars}}), do: ScrollBars.dragging?(scroll_bars)
+  defp scroll_bars_dragging?(%{scroll_bars: {:some, scroll_bars}}),
+    do: ScrollBars.dragging?(scroll_bars)
 end
