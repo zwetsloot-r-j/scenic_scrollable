@@ -93,8 +93,6 @@ defmodule ScenicScrollable.Scene.Home do
       fn graph ->
         text(graph, @note)
         |> button("ok", translate: {25, 2000})
-
-        #        |> rect({150, 100}, translate: {25, 50}, fill: :red)
       end,
       translate: {10, 10},
       scroll_position: {0, 0},
@@ -103,10 +101,6 @@ defmodule ScenicScrollable.Scene.Home do
       vertical_scroll_bar: [scroll_buttons: true, scroll_bar_theme: Theme.preset(:light)],
       horizontal_scroll_bar: [scroll_buttons: false, scroll_bar_theme: Theme.preset(:danger)]
     )
-    #    |> group(fn graph ->
-    #      graph
-    #      |> text(@note, translate: {0, 15})
-    #    end, scissor: {200, 200}, translate: {100, 100})
     |> push_graph()
     |> ResultEx.return()
   end

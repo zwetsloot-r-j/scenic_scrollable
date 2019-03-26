@@ -4,6 +4,7 @@ defmodule Scenic.Scrollable do
   """
 
   use Scenic.Component
+  use Scenic.Scrollable.SceneInspector, env: [:test, :dev]
 
   import Scenic.Primitives, only: [group: 3, rect: 3]
   import Scenic.Scrollable.Components, only: [scroll_bars: 3]
@@ -28,6 +29,17 @@ defmodule Scenic.Scrollable do
           height: number
         }
 
+  @typedoc """
+  A map with settings with which to initialize a `Scenic.Scrollable` component.
+  - frame: The size as {width, height} of the frame or viewport through which the content is visible.
+  - content: The size as {width, height}, or size and offset as `t:Scenic.Scrollable.rect/0` of the scrollable content.
+             The offset affects the limits of the contents position. To set the contents current position only, pass in the :scroll_position option, as defined in the `t:Scenic.Scrollable.style/0` type.
+  """
+  @type settings :: %{
+          frame: v2,
+          content: v2 | rect
+        }
+
   @type style ::
           {:scroll_position, v2}
           | {:scroll_acceleration, Acceleration.settings()}
@@ -37,6 +49,9 @@ defmodule Scenic.Scrollable do
           | {:scroll_bar, Scenic.Scrollable.ScrollBar.styles()}
           | {:horizontal_scroll_bar, Scenic.Scrollable.ScrollBar.styles()}
           | {:vertical_scroll_bar, Scenic.Scrollable.ScrollBar.styles()}
+          | {:translate, v2}
+          | {:id, term}
+  # TODO content styling
   # TODO bounce
 
   @type styles :: [style]
@@ -63,11 +78,6 @@ defmodule Scenic.Scrollable do
           position_caps: PositionCap.t(),
           focused: boolean,
           animating: boolean
-        }
-
-  @type settings :: %Scenic.Scrollable{
-          frame: v2,
-          content: v2 | rect
         }
 
   defstruct graph: Graph.build(),
@@ -226,9 +236,8 @@ defmodule Scenic.Scrollable do
     # TODO move this position update to apply force?
     ScrollBars.new_position(scroll_bars_state)
     |> OptionEx.map(&Vector2.add(&1, {state.content.x, state.content.y}))
-    |> OptionEx.map(fn pos -> %{state | scroll_position: pos} end)
+    |> OptionEx.map(&%{state | scroll_position: &1})
     |> OptionEx.or_else(state)
-    |> Map.put(:scroll_bars, OptionEx.return(scroll_bars_state))
     |> update
     |> (&{:stop, &1}).()
   end
@@ -269,6 +278,13 @@ defmodule Scenic.Scrollable do
     |> (&{:noreply, &1}).()
   end
 
+  # no callback on the `Scenic.Scene` and no GenServer @behaviour, so impl will not work
+  @spec handle_call(request :: term(), GenServer.from(), state :: term()) ::
+          {:reply, reply :: term, new_state :: term}
+  def handle_call(msg, _, state) do
+    {:reply, {:error, {:unexpected_message, msg}}, state}
+  end
+
   # INITIALIZERS
 
   @spec init_graph(t, (Graph.t() -> Graph.t()), styles) :: t
@@ -297,6 +313,7 @@ defmodule Scenic.Scrollable do
         |> group(builder,
           id: :content,
           translate: Vector2.add(state.scroll_position, {content.x, content.y})
+          # TODO allow styling of the content
         )
       end,
       scissor: {frame.width, frame.height},
@@ -341,14 +358,9 @@ defmodule Scenic.Scrollable do
   defp update_scroll_bars(state) do
     # TODO refactor?
     # MEMO directly calling scroll bar for performance issues, there might be a cleaner way to do this
-    state.scroll_bars
-    |> OptionEx.map(& &1.pid)
-    |> OptionEx.map(fn pid ->
-      new_scroll_bar_position =
-        Vector2.sub(state.scroll_position, {state.content.x, state.content.y})
-
-      GenServer.call(pid, {:update_scroll_position, new_scroll_bar_position})
-    end)
+    pos = Vector2.sub(state.scroll_position, {state.content.x, state.content.y})
+    OptionEx.map(state.scroll_bars, & &1.pid)
+    |> OptionEx.map(&GenServer.call(&1, {:update_scroll_position, pos}))
 
     state
   end

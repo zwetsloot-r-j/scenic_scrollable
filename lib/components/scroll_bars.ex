@@ -1,5 +1,6 @@
 defmodule Scenic.Scrollable.ScrollBars do
   use Scenic.Component
+  use Scenic.Scrollable.SceneInspector, env: [:test, :dev]
 
   import Scenic.Scrollable.Components, only: [scroll_bar: 3]
 
@@ -237,6 +238,10 @@ defmodule Scenic.Scrollable.ScrollBars do
     |> OptionEx.map(fn pid -> GenServer.call(pid, {:update_scroll_position, y}) end)
 
     {:reply, :ok, state}
+  end
+
+  def handle_call(msg, _, state) do
+    {:reply, {:error, {:unexpected_message, msg}}, state}
   end
 
   # UTILITY

@@ -1,5 +1,6 @@
 defmodule Scenic.Scrollable.ScrollBar do
   use Scenic.Component
+  use Scenic.Scrollable.SceneInspector, env: [:test, :dev]
 
   import Scenic.Primitives, only: [rrect: 3, rect: 3, text: 3]
 
@@ -35,7 +36,6 @@ defmodule Scenic.Scrollable.ScrollBar do
           {:scroll_buttons, boolean}
           # TODO use Scenic.Theme.t when/if it gets defined
           | {:scroll_bar_theme, %{}}
-          | {:scroll_bar_mouse_buttons_enabled, [mouse_button]}
           | {:scroll_bar_radius, number}
           | {:scroll_bar_border, number}
           | {:scroll_drag, Drag.settings()}
@@ -328,6 +328,10 @@ defmodule Scenic.Scrollable.ScrollBar do
 
   def handle_call(:direction, _, state) do
     {:reply, direction(state), state}
+  end
+
+  def handle_call(msg, _, state) do
+    {:reply, {:error, {:unexpected_message, msg}}, state}
   end
 
   @impl Scenic.Scene
