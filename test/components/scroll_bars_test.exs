@@ -49,15 +49,15 @@ defmodule Scenic.Scrollable.ScrollBarsTest do
       {:ok, {parent_pid, _}} = TestParentScene.inspect()
 
       graph = Components.scroll_bars(graph, settings[case_number], styles[case_number])
-      Scenic.Scrollable.TestParentScene.set_graph(parent_pid, graph)
-      #      #                  |> Graph.get!(Keyword.fetch!(styles[case_number], :id))
+      TestParentScene.set_graph(parent_pid, graph)
       ScrollBars.inspect_until_found()
     end
 
     stop = fn pid ->
       {:ok, {parent_pid, _}} = TestParentScene.inspect()
 
-      Scenic.Scrollable.TestParentScene.set_graph(parent_pid, Graph.build())
+      TestParentScene.set_graph(parent_pid, Graph.build())
+      TestParentScene.clear_event_history(parent_pid)
       ScrollBars.wait_until_destroyed(pid)
     end
 
@@ -80,6 +80,8 @@ defmodule Scenic.Scrollable.ScrollBarsTest do
     assert {0, 0} == state.scroll_position
     assert :idle == state.scroll_state
 
+    assert TestParentScene.has_event_fired?(:scroll_bars_initialized)
+
     stop.(pid)
   end
 
@@ -94,6 +96,8 @@ defmodule Scenic.Scrollable.ScrollBarsTest do
     assert is_pid(state.pid)
     assert {50, 25} == state.scroll_position
     assert :idle == state.scroll_state
+
+    assert TestParentScene.has_event_fired?(:scroll_bars_initialized)
 
     stop.(pid)
   end
@@ -160,11 +164,10 @@ defmodule Scenic.Scrollable.ScrollBarsTest do
     ScrollBar.simulate_left_button_press(horizontal_scroll_bar_pid, {0, 0}, :scroll_bar_slider_drag_control)
     ScrollBar.simulate_mouse_move(horizontal_scroll_bar_pid, {1, 0}, :input_capture)
 
-    # TODO find a way to await and assert the event has reached the ScrollBars server
-    :timer.sleep(100)
-
-    {:ok, {pid, state}} = ScrollBars.inspect(pid)
-    assert ScrollBars.dragging?(state)
+    assert {:ok, true} = wait_until_true(fn ->
+      {:ok, {_pid, state}} = ScrollBars.inspect(pid)
+      ScrollBars.dragging?(state)
+    end)
 
     stop.(pid)
   end
@@ -186,16 +189,39 @@ defmodule Scenic.Scrollable.ScrollBarsTest do
     ScrollBar.simulate_left_button_press(horizontal_scroll_bar_pid, {0, 0}, :scroll_bar_slider_drag_control)
     ScrollBar.simulate_mouse_move(horizontal_scroll_bar_pid, {2, 0}, :input_capture)
 
-    # TODO find a way to await and assert the event has reached the ScrollBars server
-    :timer.sleep(100)
+    assert {:ok, true} = wait_until_true(fn ->
+      {:ok, {_pid, state}} = ScrollBars.inspect(pid)
+      {:some, {x, y}} = ScrollBars.new_position(state)
 
-    {:ok, {pid, state}} = ScrollBars.inspect(pid)
-    {:some, {x, y}} = ScrollBars.new_position(state)
-
-    assert_in_delta x, -3.5, 0.1
-    assert y == 25
+      x > -3.6 && x < -3.4 && y == 25
+    end)
 
     stop.(pid)
+  end
+
+  test "update scroll position", %{start: start, stop: stop} do
+    {:ok, {pid, _}} = start.(:case_2)
+
+    GenServer.call(pid, {:update_scroll_position, {10, 5}})
+    {:ok, {pid, state}} = ScrollBars.inspect(pid)
+
+    assert {:some, {10, 5}} == ScrollBars.new_position(state)
+
+    stop.(pid)
+  end
+
+  defp wait_until_true(assertion, timeout \\ 5000), do: wait_until_true(assertion, 0, timeout)
+
+  defp wait_until_true(assertion, time_passed, timeout) do
+    case {assertion.(), time_passed < timeout} do
+      {true, _} ->
+        {:ok, true}
+      {_, false} ->
+        {:error, :timeout}
+      _ ->
+        :timer.sleep(100)
+        wait_until_true(assertion, time_passed + 100, timeout)
+    end
   end
 
 end

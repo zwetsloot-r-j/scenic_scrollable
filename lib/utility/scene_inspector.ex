@@ -79,6 +79,10 @@ defmodule Scenic.Scrollable.SceneInspector do
           simulate_input(pid, {:cursor_pos, position}, origin_id)
         end
 
+        def simulate_mouse_exit(pid, origin_id) do
+          simulate_input(pid, {:cursor_exit, origin_id}, origin_id)
+        end
+
         def simulate_input(pid, event, origin_id) do
           context = make_input_context(event, origin_id)
           GenServer.cast(pid, {:input, event, context})

@@ -104,6 +104,7 @@ defmodule Scenic.Scrollable do
   def verify(%{content: %{width: content_width, height: content_height, x: x, y: y}} = input)
       when is_number(x) and is_number(y) do
     verify(%{input | content: {content_width, content_height}})
+    |> ResultEx.map(fn _ -> input end)
   end
 
   def verify(
@@ -357,7 +358,7 @@ defmodule Scenic.Scrollable do
   @spec update_scroll_bars(t) :: t
   defp update_scroll_bars(state) do
     # TODO refactor?
-    # MEMO directly calling scroll bar for performance issues, there might be a cleaner way to do this
+    # MEMO due to performance issues, I am directly calling to the scroll bars, rather than modifying the graph. There might be a cleaner way to do this.
     pos = Vector2.sub(state.scroll_position, {state.content.x, state.content.y})
     OptionEx.map(state.scroll_bars, & &1.pid)
     |> OptionEx.map(&GenServer.call(&1, {:update_scroll_position, pos}))
