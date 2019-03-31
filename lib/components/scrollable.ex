@@ -51,7 +51,7 @@ defmodule Scenic.Scrollable do
           | {:vertical_scroll_bar, Scenic.Scrollable.ScrollBar.styles()}
           | {:translate, v2}
           | {:id, term}
-  # TODO content styling
+          | {atom, term} # enable any input to be passed to the content
   # TODO bounce
 
   @type styles :: [style]
@@ -65,6 +65,7 @@ defmodule Scenic.Scrollable do
   @type builder :: (Graph.t() -> Graph.t())
 
   @type t :: %__MODULE__{
+          id: any,
           graph: Graph.t(),
           frame: rect,
           content: rect,
@@ -77,10 +78,11 @@ defmodule Scenic.Scrollable do
           hotkeys: Hotkeys.t(),
           position_caps: PositionCap.t(),
           focused: boolean,
-          animating: boolean
+          animating: boolean,
         }
 
-  defstruct graph: Graph.build(),
+  defstruct id: :scrollable,
+            graph: Graph.build(),
             frame: %{x: 0, y: 0, width: 0, height: 0},
             content: %{x: 0, y: 0, width: 0, height: 0},
             scroll_position: {0, 0},
@@ -132,10 +134,11 @@ defmodule Scenic.Scrollable do
     scroll_position = styles[:scroll_position] || @default_scroll_position
 
     %__MODULE__{
+      id: opts[:id] || :scrollable,
       frame: %{x: frame_x, y: frame_y, width: frame_width, height: frame_height},
       content: content,
       scroll_position: Vector2.add(scroll_position, {content.x, content.y}),
-      fps: styles[:fps] || @default_fps,
+      fps: styles[:scroll_fps] || @default_fps,
       acceleration: Acceleration.init(styles[:scroll_acceleration]),
       hotkeys: Hotkeys.init(styles[:scroll_hotkeys]),
       drag_state: Drag.init(styles[:scroll_drag])
@@ -292,7 +295,7 @@ defmodule Scenic.Scrollable do
   defp init_graph(state, builder, styles) do
     state
     |> init_input_capture
-    |> init_content(builder)
+    |> init_content(builder, styles)
     |> init_scroll_bars(styles)
     |> get_and_push_graph
   end
@@ -304,17 +307,17 @@ defmodule Scenic.Scrollable do
     |> (&%{state | graph: &1}).()
   end
 
-  @spec init_content(t, (Graph.t() -> Graph.t())) :: t
-  defp init_content(%{graph: graph, frame: frame, content: content} = state, builder) do
+  @spec init_content(t, (Graph.t() -> Graph.t()), styles) :: t
+  defp init_content(%{graph: graph, frame: frame, content: content} = state, builder, styles) do
     # MEMO: stacking up groups and scenes will result in reaching the cap prety fast when nesting scrollable elements
     group(
       graph,
       fn graph ->
         graph
         |> group(builder,
-          id: :content,
-          translate: Vector2.add(state.scroll_position, {content.x, content.y})
-          # TODO allow styling of the content
+                 Enum.into(styles, [])
+                 |> Keyword.put(:id, :content)
+                 |> Keyword.put(:translate, Vector2.add(state.scroll_position, {content.x, content.y}))
         )
       end,
       scissor: {frame.width, frame.height},
@@ -338,7 +341,9 @@ defmodule Scenic.Scrollable do
     min = {x + frame_width - content_width, y + frame_height - content_height}
     max = {x, y}
 
-    Map.put(state, :position_caps, PositionCap.init(%{min: min, max: max}))
+    position_cap = PositionCap.init(%{min: min, max: max})
+    Map.put(state, :position_caps, position_cap)
+    |> Map.update(:scroll_position, {0, 0}, &PositionCap.cap(position_cap, &1))
   end
 
   # UPDATERS
@@ -500,7 +505,7 @@ defmodule Scenic.Scrollable do
   @spec verify_cooling_down_state(t) :: {:some, :cooling_down} | :none
   defp verify_cooling_down_state(state) do
     result =
-      Hotkeys.direction(state.hotkeys) == {0, 0} and not Drag.dragging?(state.drag_state) and
+      not Hotkeys.is_any_key_pressed?(state.hotkeys) and not Drag.dragging?(state.drag_state) and
         get_scroll_bars_direction(state) == {0, 0} and not scroll_bars_dragging?(state) and
         not Acceleration.is_stationary?(state.acceleration)
 

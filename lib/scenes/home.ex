@@ -99,7 +99,9 @@ defmodule ScenicScrollable.Scene.Home do
       scroll_hotkeys: %{up: "w", down: "s", left: "d", right: "a"},
       scroll_drag: %{mouse_buttons: [:left]},
       vertical_scroll_bar: [scroll_buttons: true, scroll_bar_theme: Theme.preset(:light)],
-      horizontal_scroll_bar: [scroll_buttons: false, scroll_bar_theme: Theme.preset(:danger)]
+      horizontal_scroll_bar: [scroll_buttons: false, scroll_bar_theme: Theme.preset(:danger)],
+      stroke: {5, :red},
+      fill: :yellow
     )
     |> push_graph()
     |> ResultEx.return()

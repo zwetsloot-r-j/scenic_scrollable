@@ -140,6 +140,16 @@ defmodule Scenic.Scrollable.Hotkeys do
     {x, y}
   end
 
+  @doc """
+  Verify if one or more hotkeys are currently being pressed.
+  """
+  @spec is_any_key_pressed?(t) :: boolean
+  def is_any_key_pressed?(%{key_pressed_states: pressed_states}) do
+    pressed_states
+    |> Map.values
+    |> Enum.any?(& &1 == :pressed)
+  end
+
   # Flags the key as pressed in the `t:Scrollable.Hotkeys.t` state.
   @spec press(t, :up | :down | :left | :right) :: t
   defp press(state, key) do
