@@ -44,7 +44,7 @@ defmodule Scenic.Scrollable.MixProject do
 
   defp package do
     [
-      licences: ["MIT"],
+      licenses: ["MIT"],
       maintainers: ["Robert Jan Zwetsloot"],
       links: %{github: @github}
     ]
