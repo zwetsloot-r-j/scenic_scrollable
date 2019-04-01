@@ -6,7 +6,7 @@ use Mix.Config
 config :scenic_scrollable, :viewport, %{
   name: :main_viewport,
   size: {700, 600},
-  default_scene: {ScenicScrollable.Scene.Home, nil},
+  default_scene: {Scenic.Scrollable.Scene.Demo, nil},
   drivers: [
     %{
       module: Scenic.Driver.Glfw,

@@ -12,12 +12,117 @@ defmodule Scenic.Scrollable.ScrollBar do
   alias Scenic.Primitive.Style.Theme
   alias Scenic.Math.Vector2
 
+  @moduledoc """
+  The scroll bar component can be used to draw a scroll bar to the scene by adding it to the graph. The scroll bar is used internally by the `Scenic.Scrollable` component and for most cases it is recommended to use the `Scenic.Scrollable` component instead.
+
+  The scroll bar can be setup to make use of scroll buttons at the scroll bars edges, in order to enable scrolling by pressing and holding such button, in addition to dragging the scroll bar slider control to drag, or clicking the slider background to jump.
+
+  ## Data
+
+  `t:Scenic.Scrollable.ScrollBar.settings/0`
+
+  The scroll bar requires the following data for initialization:
+
+  - width: number
+  - height: number
+  - content_size: number
+  - scroll_position: number
+  - direction: :horizontal | :vertical
+
+  Width and height define the display size of the scroll bar.
+  The content size defines the size of the scrollable content in the direction of the scroll bar. When the scroll bar is a horizontal scroll bar, the content size should correspond to the width of the content.
+  The scroll position specifies the starting position of the scrollable content. Note that the scroll position corresponds to the translation of the content, rather than the scroll bar slider.
+  The direction specifies if the scroll bar scrolls in horizontal, or in vertical direction.
+
+  ## Styles
+
+  `t:Scenic.Scrollable.ScrollBar.styles/0`
+
+  Optional styles to customize the scroll bar. The following styles are supported:
+
+  - scroll_buttons: boolean
+  - scroll_bar_theme: map
+  - scroll_bar_radius: number
+  - scroll_bar_border: number
+  - scroll_drag: `t:Scenic.Scrollable.Drag.settings/0`
+
+  The scroll_buttons boolean can be used to specify of the scroll bar should contain buttons for scrolling, in addition to the scroll bar slider. The scroll buttons are not shown by default.
+  A theme can be passed using the scroll_bar_theme element to provide a set of colors for the scroll bar. For more information on themes, see the `Scenic.Primitive.Style.Theme` module. The default theme is `:light`.
+  The scroll bars rounding and border can be adjusted using the scroll_bar_radius and scroll_bar_border elements respectively. The default values are 3 and 1.
+  The scroll_drag settings can be provided to specify by which mouse button the scroll bar slider can be dragged. By default, the `:left`, `:right` and `:middle` buttons are all enabled.
+
+  ## Examples
+
+      iex> graph = Scenic.Scrollable.Components.scroll_bar(
+      ...>   Scenic.Graph.build(),
+      ...>   %{
+      ...>     width: 200,
+      ...>     height: 10,
+      ...>     content_size: 1000,
+      ...>     scroll_position: 0,
+      ...>     direction: :horizontal
+      ...>   },
+      ...>   [id: :scroll_bar_component_1]
+      ...> )
+      ...> graph.primitives[1].id
+      :scroll_bar_component_1
+
+      iex> graph = Scenic.Scrollable.Components.scroll_bar(
+      ...>   Scenic.Graph.build(),
+      ...>   %{
+      ...>     width: 200,
+      ...>     height: 10,
+      ...>     content_size: 1000,
+      ...>     scroll_position: 0,
+      ...>     direction: :horizontal
+      ...>   },
+      ...>   [
+      ...>     scroll_buttons: true,
+      ...>     scroll_bar_theme: Scenic.Primitive.Style.Theme.preset(:dark),
+      ...>     scroll_bar_radius: 4,
+      ...>     scroll_bar_border: 1,
+      ...>     scroll_drag: %{
+      ...>       mouse_buttons: [:left, :right]
+      ...>     },
+      ...>     id: :scroll_bar_component_2
+      ...>   ]
+      ...> )
+      ...> graph.primitives[1].id
+      :scroll_bar_component_2
+
+  """
+
+  @typedoc """
+  Specifies the direction in which the scroll bar affects the content.
+  A direction can be either :horizontal or :vertical.
+  """
   @type scroll_direction :: Direction.direction()
 
+  @typedoc """
+  Data structure representing a vector 2, in the form of an {x, y} tuple.
+  """
   @type v2 :: Scenic.Scrollable.v2()
 
+  @typedoc """
+  Data structure representing a rectangle.
+  """
   @type rect :: Scenic.Scrollable.rect()
 
+  @typedoc """
+  The data required to initialize a scroll bar component.
+  The scroll bar requires the following data for initialization:
+
+  - width: number
+  - height: number
+  - content_size: number
+  - scroll_position: number
+  - direction: :horizontal | :vertical
+
+  Width and height define the display size of the scroll bar.
+  The content size defines the size of the scrollable content in the direction of the scroll bar. When the scroll bar is a horizontal scroll bar, the content size should correspond to the width of the content.
+  The scroll position specifies the starting position of the scrollable content. Note that the scroll position corresponds to the translation of the content, rather than the scroll bar slider.
+  The direction specifies if the scroll bar scrolls in horizontal, or in vertical direction.
+  """
   @type settings :: %{
           width: number,
           height: number,
@@ -26,12 +131,17 @@ defmodule Scenic.Scrollable.ScrollBar do
           direction: scroll_direction
         }
 
+  @typedoc """
+  Atom representing a mouse button.
+  """
   @type mouse_button ::
           :left
           | :right
           | :middle
 
-  # TODO enable images as buttons
+  @typedoc """
+  The optional styles with which the scroll bar component can be customized. See this modules top section for a more detailed explanation of every style.
+  """
   @type style ::
           {:scroll_buttons, boolean}
           # TODO use Scenic.Theme.t when/if it gets defined
@@ -39,14 +149,24 @@ defmodule Scenic.Scrollable.ScrollBar do
           | {:scroll_bar_radius, number}
           | {:scroll_bar_border, number}
           | {:scroll_drag, Drag.settings()}
+          # TODO enable images as buttons
 
+  @typedoc """
+  A collection of optional styles with which the scroll bar component can be customized. See `t:Scenic.Scrollable.ScrollBar.style/0` and this modules top section for more information.
+  """
   @type styles :: [style]
 
+  @typedoc """
+  A map containing information about the scroll button pressed states.
+  """
   @type scroll_buttons :: %{
           scroll_button_1: :pressed | :released,
           scroll_button_2: :pressed | :released
         }
 
+  @typedoc """
+  The state with which the scroll bar components GenServer is running.
+  """
   @type t :: %__MODULE__{
           id: atom,
           graph: Graph.t(),
@@ -83,13 +203,17 @@ defmodule Scenic.Scrollable.ScrollBar do
             styles: [],
             pid: nil
 
-  @default_drag_settings [:left, :right, :middle]
+  @default_drag_settings %{mouse_buttons: [:left, :right, :middle]}
   @default_button_radius 3
   @default_stroke_size 1
   @default_id :scroll_bar
 
   # PUBLIC API
 
+  @doc """
+  Find out the direction in which the content should be scrolled based on the scroll buttons currently being pressed.
+  Although the scroll bar will move along a single axis, a vector 2 is returned to facilitate translation calculations of the content.
+  """
   @spec direction(pid | t) :: v2
   def direction(pid) when is_pid(pid) do
     GenServer.call(pid, :direction)
@@ -113,9 +237,16 @@ defmodule Scenic.Scrollable.ScrollBar do
 
   def direction(_), do: {0, 0}
 
+  @doc """
+  Find out if the scroll bar is currently being dragged by the user.
+  """
   @spec dragging?(t) :: boolean
   def dragging?(state), do: Drag.dragging?(state.drag_state)
 
+  @doc """
+  Find the latest position the scrollable content should be updated with.
+  The position corresponds to the contents translation, rather than the scroll bars drag control translation.
+  """
   @spec new_position(t) :: v2
   def new_position(state) do
     scroll_position_vector2(state)

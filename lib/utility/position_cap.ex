@@ -1,6 +1,10 @@
 defmodule Scenic.Scrollable.PositionCap do
   alias __MODULE__
 
+  @moduledoc """
+  Module for applying limits to a position.
+  """
+
   @typedoc """
   A vector 2 in the form of {x, y}
   """

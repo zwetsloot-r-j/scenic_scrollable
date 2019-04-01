@@ -1,8 +1,4 @@
 defmodule Scenic.Scrollable do
-  @moduledoc """
-
-  """
-
   use Scenic.Component
   use Scenic.Scrollable.SceneInspector, env: [:test, :dev]
 
@@ -20,8 +16,191 @@ defmodule Scenic.Scrollable do
   alias Scenic.Scrollable.Acceleration
   alias Scenic.Scrollable.PositionCap
 
+  @moduledoc """
+  The scrollable component offers a way to show part of a content group bounded by a fixed rectangle or frame, and change the visible part of the content without displacing the bounded rectangle by scrolling.
+
+  The scrollable component offers three ways to scroll, which can be used in conjunction:
+
+  - The content can be clicked and dragged directly using a mouse.
+  - Hotkeys can be set for up, down, left and right scroll directions.
+  - A horizontal and a vertical scroll bar can be set up.
+
+  Note that for the hotkeys to work, the scrollable component has to catch focus first by clicking it once with the left mouse button.
+
+  ## Data
+
+  `t:Scenic.Scrollable.settings/0`
+
+  To initialize a scrollable component, a map containing `frame` and `content` elements, and a builder function are required. Further customization can be provided with optional styles.
+
+  ### Frame
+
+  The frame contains information about the size of the fixed rectangle shaped bounding box. It is a tuple containing the width as first element, and height as second element.
+
+  ### Content
+
+  The content contains information about the size and offset of the content. The offset can be used to adjust the limits of where the content can be scrolled to, and can for example be of used when the content position looks off in its {0, 0} starting position. If no offset is required, the content can be passed as a tuple containing the width as first element, and height as second element. If an offset is used, the content can be passed as a `t:Scenic.Scrollable.rect/0`, which is a map containing `x`, `y`, `width` and `height` elements.
+
+  ## Builder
+
+  `t:Scenic.Scrollable.builder/0`
+
+  In addition to the required data, a scrollable component requires a builder, similar to the `Scenic.Primitive.Group` primitive. The builder is a function that takes a graph, and should return a graph with the necessary components attached to it that form the content of the scrollable component.
+
+  ## Styles
+
+  `t:Scenic.Scrollable.styles/0`
+
+  Similar to the `Scenic.Primitive.Group` primitive, any style can be passed to the scrollable component, which will be passed on to the underlying components. In addition, the following styles specific to the scrollable component can be provided.
+
+  ### scroll_position
+
+  `t:Scenic.Scrollable.v2/0`
+
+  The starting position of the scrollable content. This does not influence the limits to where the content can be scrolled to.
+
+  ### scroll_acceleration
+
+  `t:Scenic.Scrollable.Acceleration.settings/0`
+
+  Settings regarding sensitivity of the scroll functionality. The settings are passed in a map with the following elements:
+
+  - acceleration: number
+  - mass: number
+  - counter_pressure: number
+
+  The higher number given for the acceleration, the faster the scroll movement gains speed. The default value is 20.
+  The higher number given for the mass, the slower the scroll movement gains speed, and the faster it loses speed. The default value is 1.
+  The higher number given for counter_pressure, the lower the maximum scroll speed, and the faster the scroll movement loses speed after the user input has stopped. The default value is 0.1.
+
+  ### scroll_hotkeys
+
+  `t:Scenic.Scrollable.Hotkeys.settings/0`
+
+  A hotkey can be provided for every scroll direction to enable scrolling using the keyboard. The hotkey settings can be passed in a map with the following elements.
+
+  - up: `t:String.t/0`
+  - down: `t:String.t/0`
+  - left: `t:String.t/0`
+  - right: `t:String.t/0`
+
+  The passed string can be the letter of the intended key, such as "w" or "s", or the description of a special key, such as the arrow keys "up", "down", "left" or "right".
+
+  ### scroll_fps
+
+  number
+
+  Specifies the times per second the scroll content position is recalculated when it is scrolling. For environments with limited resources, it might be prudent to set a lower value than the default 30.
+
+  ### scroll_drag
+
+  `t:Scenic.Scrollable.Drag.settings/0`
+
+  Options for enabling scrolling by directly dragging the content using a mouse. Buttons events on the scrollable content will take precedence over the drag functionality. Drag settings are passed in a map with the following elements:
+
+  - mouse_buttons: [`t:Scenic.Scrollable.Drag.mouse_button/0`]
+
+  The list of mouse buttons specifies with which mouse button the content can be dragged. Available mouse buttons are `:left`, `:right` and `:middle`. By default, the drag functionality is disabled.
+
+  ### scroll_bar_thickness
+
+  number
+
+  Specify the thickness of both scroll bars.
+
+  ### scroll_bar
+
+  `t:Scenic.Scrollable.ScrollBar.styles/0`
+
+  Specify the styles for both horizontal and vertical scroll bars. If different styles for each scroll bar are desired, use the `vertical_scroll_bar` and `horizontal_scroll_bar` options instead. The following styles are supported"
+
+  - scroll_buttons: boolean
+  - scroll_bar_theme: map
+  - scroll_bar_radius: number
+  - scroll_bar_border: number
+  - scroll_drag: `t:Scenic.Scrollable.Drag.settings/0`
+
+  The scroll_buttons boolean can be used to specify of the scroll bar should contain buttons for scrolling, in addition to the scroll bar slider. The scroll buttons are not shown by default.
+  A theme can be passed using the scroll_bar_theme element to provide a set of colors for the scroll bar. For more information on themes, see the `Scenic.Primitive.Style.Theme` module. The default theme is `:light`.
+  The scroll bars rounding and border can be adjusted using the scroll_bar_radius and scroll_bar_border elements respectively. The default values are 3 and 1.
+  The scroll_drag settings can be provided in the same form the scrollable components scroll_drag style is provided, and can be used to specify by which mouse button the scroll bar slider can be dragged. By default, the `:left`, `:right` and `:middle` buttons are all enabled.
+
+  ### horizontal_scroll_bar
+
+  `t:Scenic.Scrollable.ScrollBar.styles/0`
+
+  Specify styles for the horizontal scroll bar only. The available styles are exactly the same as explained in the above scroll_bar style section.
+
+  ### vertical_scroll_bar
+
+  `t:Scenic.Scrollable.ScrollBar.styles/0`
+
+  Specify styles for the vertical scroll bar only. The available styles are exactly the same as explained in the above scroll_bar style section.
+
+  ## Examples
+
+      iex> graph = Scenic.Scrollable.Components.scrollable(
+      ...>   Scenic.Graph.build(),
+      ...>   %{
+      ...>     frame: {200, 400},
+      ...>     content: %{x: 0, y: 10, width: 400, height: 800}
+      ...>   },
+      ...>   fn graph ->
+      ...>     Scenic.Primitives.text(graph, "scrollable text")
+      ...>   end,
+      ...>   [id: :scrollable_component_1]
+      ...> )
+      ...> graph.primitives[1].id
+      :scrollable_component_1
+
+      iex> graph = Scenic.Scrollable.Components.scrollable(
+      ...>   Scenic.Graph.build(),
+      ...>   %{
+      ...>     frame: {200, 400},
+      ...>     content: %{x: 0, y: 10, width: 400, height: 800}
+      ...>   },
+      ...>   fn graph ->
+      ...>     Scenic.Primitives.text(graph, "scrollable text")
+      ...>   end,
+      ...>   [
+      ...>     scroll_position: {-10, -50},
+      ...>     scroll_acceleration: %{
+      ...>       acceleration: 15,
+      ...>       mass: 1.2,
+      ...>       counter_pressure: 0.2
+      ...>     },
+      ...>     scroll_hotkeys: %{
+      ...>       up: "w",
+      ...>       down: "s",
+      ...>       left: "a",
+      ...>       right: "d"
+      ...>     },
+      ...>     scroll_fps: 15,
+      ...>     scroll_drag: %{
+      ...>       mouse_buttons: [:left]
+      ...>     },
+      ...>     scroll_bar_thickness: 15,
+      ...>     scroll_bar: [
+      ...>       scroll_buttons: true,
+      ...>       scroll_bar_theme: Scenic.Primitive.Style.Theme.preset(:dark)
+      ...>     ],
+      ...>     translate: {50, 50},
+      ...>     id: :scrollable_component_2
+      ...>   ]
+      ...> )
+      ...> graph.primitives[1].id
+      :scrollable_component_2
+
+  """
+
+  @typedoc """
+  Data structure representing a vector 2, in the form of an {x, y} tuple.
+  """
   @type v2 :: Scenic.Math.vector_2()
 
+  @typedoc """
+  Data structure representing a rectangle.
+  """
   @type rect :: %{
           x: number,
           y: number,
@@ -40,12 +219,16 @@ defmodule Scenic.Scrollable do
           content: v2 | rect
         }
 
+  @typedoc """
+  The optional styles with which the scrollable component can be customized. See this modules top section for a more detailed explanation of every style.
+  """
   @type style ::
           {:scroll_position, v2}
           | {:scroll_acceleration, Acceleration.settings()}
           | {:scroll_hotkeys, Hotkeys.settings()}
           | {:scroll_fps, number}
           | {:scroll_drag, Drag.settings()}
+          | {:scroll_bar_thickness, number}
           | {:scroll_bar, Scenic.Scrollable.ScrollBar.styles()}
           | {:horizontal_scroll_bar, Scenic.Scrollable.ScrollBar.styles()}
           | {:vertical_scroll_bar, Scenic.Scrollable.ScrollBar.styles()}
@@ -54,16 +237,32 @@ defmodule Scenic.Scrollable do
           | {atom, term} # enable any input to be passed to the content
   # TODO bounce
 
+  @typedoc """
+  A collection of optional styles with which the scrollable component can be customized. See `t:Scenic.Scrollable.style/0` and this modules top section for more information.
+  """
   @type styles :: [style]
 
+  @typedoc """
+  The states a scrollable component can be in.
+  - scrolling: the scrollable component is currently being scrolled using a scroll button or hotkey
+  - dragging: the scrollable component is currently being dragged, by using a scroll bar slider, or by dragging the content directly using a mouse button
+  - cooling_down: the scrollable component is still moving due to previous user input, but the user is not giving any scroll related input at the moment.
+  - idle: the scrollable component is not moving
+  """
   @type scroll_state ::
           :scrolling
           | :dragging
           | :cooling_down
           | :idle
 
+  @typedoc """
+  The builder function used to setup the content of the scrollable component. The builder function works the same as the builder function used for setting up `Scenic.Primitive.Group` primitives.
+  """
   @type builder :: (Graph.t() -> Graph.t())
 
+  @typedoc """
+  The state with which the scrollable components GenServer is running.
+  """
   @type t :: %__MODULE__{
           id: any,
           graph: Graph.t(),

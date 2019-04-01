@@ -1,4 +1,4 @@
-defmodule ScenicScrollable do
+defmodule Scenic.Scrollable.Application do
   @moduledoc """
   Starter application using the Scenic framework.
   """

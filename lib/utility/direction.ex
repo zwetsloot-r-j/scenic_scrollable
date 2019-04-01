@@ -1,11 +1,26 @@
 defmodule Scenic.Scrollable.Direction do
+  @moduledoc """
+  Utility module for limiting certain operations along a certain direction only. A value can be connected to either horizontal or vertical directions.
+  """
+
+  @typedoc """
+  The directions a value can be associated with.
+  """
   @type direction :: :horizontal | :vertical
 
+  @typedoc """
+  The Direction type. A value can be either associated with the horizontal or the vertical direction, by pairing the :horizontal or :vertical atoms with the value in a tuple.
+  """
   @type t :: {:horizontal, term} | {:vertical, term}
 
+  @typedoc """
+  Data structure representing a vector 2, in the form of an {x, y} tuple.
+  """
   @type v2 :: Scenic.Scrollable.v2()
 
   @doc """
+  Associate a value with a direction.
+
   ## Examples
 
       iex> Scenic.Scrollable.Direction.return(5, :horizontal)
@@ -19,6 +34,8 @@ defmodule Scenic.Scrollable.Direction do
   def return(x, :vertical), do: {:vertical, x}
 
   @doc """
+  Associate a value with the horizontal direction.
+
   ## Examples
 
       iex> Scenic.Scrollable.Direction.as_horizontal(5)
@@ -28,6 +45,8 @@ defmodule Scenic.Scrollable.Direction do
   def as_horizontal(x), do: return(x, :horizontal)
 
   @doc """
+  Associate a value with the vertical direction.
+
   ## Examples
 
       iex> Scenic.Scrollable.Direction.as_vertical(6)
@@ -37,6 +56,9 @@ defmodule Scenic.Scrollable.Direction do
   def as_vertical(x), do: return(x, :vertical)
 
   @doc """
+  Convert a `t:Scenic.Scrollable.Direction.t/0` to a `t:Scenic.Math.vector_2/0`.
+  If the value is non numeric, the vector {0, 0} will be returned.
+
   ## Examples
 
       iex> Scenic.Scrollable.Direction.as_horizontal(5)
@@ -57,6 +79,8 @@ defmodule Scenic.Scrollable.Direction do
   def to_vector_2(_), do: {0, 0}
 
   @doc """
+  Create a `t:Scenic.Scrollable.Direction.t/0` from a `t:Scenic.Math.vector_2/0`.
+
   ## Examples
 
       iex> Scenic.Scrollable.Direction.from_vector_2({3, 5}, :horizontal)
@@ -70,6 +94,8 @@ defmodule Scenic.Scrollable.Direction do
   def from_vector_2({_, y}, :vertical), do: {:vertical, y}
 
   @doc """
+  Obtain the inner value from a `t:Scenic.Scrollable.Direction.t/0`.
+
   ## Examples
 
       iex> Scenic.Scrollable.Direction.as_horizontal(5)
@@ -80,6 +106,8 @@ defmodule Scenic.Scrollable.Direction do
   def unwrap({_, x}), do: x
 
   @doc """
+  Convert a horizontal `t:Scenic.Scrollable.Direction.t/0` to a vertical one, and vice versa.
+
   ## Examples
 
       iex> Scenic.Scrollable.Direction.as_horizontal(5)
@@ -91,6 +119,8 @@ defmodule Scenic.Scrollable.Direction do
   def invert({:vertical, x}), do: {:horizontal, x}
 
   @doc """
+  Add two `t:Scenic.Scrollable.Direction.t/0` values. Only values associated with the same direction will be added. Non numeric values are ignored.
+
   ## Examples
 
       iex> five = Scenic.Scrollable.Direction.as_horizontal(5)
@@ -124,6 +154,8 @@ defmodule Scenic.Scrollable.Direction do
   def add({:vertical, x}, _), do: {:vertical, x}
 
   @doc """
+  Subtract two `t:Scenic.Scrollable.Direction.t/0` values. Only values associated with the same direction will be subtracted. Non numeric values are ignored.
+
   ## Examples
 
       iex> five = Scenic.Scrollable.Direction.as_horizontal(5)
@@ -157,6 +189,8 @@ defmodule Scenic.Scrollable.Direction do
   def subtract({:vertical, x}, _), do: {:vertical, x}
 
   @doc """
+  Multiply two `t:Scenic.Scrollable.Direction.t/0` values. Only values associated with the same direction will be multiplied. Non numeric values are ignored.
+
   ## Examples
 
       iex> five = Scenic.Scrollable.Direction.as_horizontal(5)
@@ -195,6 +229,8 @@ defmodule Scenic.Scrollable.Direction do
   end
 
   @doc """
+  Divide two `t:Scenic.Scrollable.Direction.t/0` values. Only values associated with the same direction will be divided. Non numeric values are ignored.
+
   ## Examples
 
       iex> fifty = Scenic.Scrollable.Direction.as_horizontal(50)
@@ -228,6 +264,9 @@ defmodule Scenic.Scrollable.Direction do
   def divide({:vertical, x}, _), do: {:vertical, x}
 
   @doc """
+  Apply a function only if the `t:Scenic.Scrollable.Direction.t\0` is associated with the horizontal direction.
+  Returns a new `t:Scenic.Scrollable.Direction.t\0`.
+
   ## Examples
 
       iex> Scenic.Scrollable.Direction.map_horizontal({:horizontal, 5}, & &1 * 2)
@@ -241,6 +280,9 @@ defmodule Scenic.Scrollable.Direction do
   def map_horizontal(x, _), do: x
 
   @doc """
+  Apply a function only if the `t:Scenic.Scrollable.Direction.t\0` is associated with the vertical direction.
+  Returns a new `t:Scenic.Scrollable.Direction.t\0`.
+
   ## Examples
 
       iex> Scenic.Scrollable.Direction.map_vertical({:vertical, 5}, & &1 * 2)
@@ -254,6 +296,9 @@ defmodule Scenic.Scrollable.Direction do
   def map_vertical(x, _), do: x
 
   @doc """
+  Apply a function to the `t:Scenic.Scrollable.Direction.t\0` inner value.
+  Returns a new `t:Scenic.Scrollable.Direction.t\0`.
+
   ## Examples
 
       iex> Scenic.Scrollable.Direction.map({:horizontal, 5}, & &1 * 2)

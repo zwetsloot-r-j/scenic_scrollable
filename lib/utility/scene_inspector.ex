@@ -3,8 +3,6 @@ defmodule Scenic.Scrollable.SceneInspector do
   @moduledoc false
   # This module is meant for testing and debugging purposes only
 
-  @type v2 :: Scenic.Math.vector_2()
-
   defmacro __using__(opts) do
     quote do
       enabled = Enum.member?(unquote(opts)[:env] || [], Mix.env())
@@ -82,19 +80,19 @@ defmodule Scenic.Scrollable.SceneInspector do
         end
 
         @doc false
-        @spec simulate_left_button_press(pid, v2, atom) :: :ok
+        @spec simulate_left_button_press(pid, Scenic.Math.vector_2, atom) :: :ok
         def simulate_left_button_press(pid, position, origin_id) do
           simulate_input(pid, {:cursor_button, {:left, :press, 0, position}}, origin_id)
         end
 
         @doc false
-        @spec simulate_left_button_release(pid, v2, atom) :: :ok
+        @spec simulate_left_button_release(pid, Scenic.Math.vector_2, atom) :: :ok
         def simulate_left_button_release(pid, position, origin_id) do
           simulate_input(pid, {:cursor_button, {:left, :release, 0, position}}, origin_id)
         end
 
         @doc false
-        @spec simulate_mouse_move(pid, v2, atom) :: :ok
+        @spec simulate_mouse_move(pid, Scenic.Math.vector_2, atom) :: :ok
         def simulate_mouse_move(pid, position, origin_id) do
           simulate_input(pid, {:cursor_pos, position}, origin_id)
         end

@@ -1,4 +1,4 @@
-defmodule ScenicScrollable.MixProject do
+defmodule Scenic.Scrollable.MixProject do
   use Mix.Project
 
   def project do
@@ -8,14 +8,15 @@ defmodule ScenicScrollable.MixProject do
       elixir: "~> 1.7",
       build_embedded: true,
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      docs: [extras: ["README.md"]]
     ]
   end
 
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      mod: {ScenicScrollable, []},
+      mod: {Scenic.Scrollable.Application, []},
       extra_applications: []
     ]
   end
