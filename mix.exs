@@ -14,7 +14,10 @@ defmodule Scenic.Scrollable.MixProject do
       deps: deps(),
       name: "Scenic Scrollable",
       source_url: @github,
-      docs: [extras: ["README.md"]],
+      docs: [
+        main: "Scenic.Scrollable",
+        extras: ["README.md"]
+      ],
       package: package()
     ]
   end

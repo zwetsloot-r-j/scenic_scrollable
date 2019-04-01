@@ -103,3 +103,34 @@ graph = Scenic.Scrollable.Components.scrollable(
 ```
 
 ![](images/screen_shot_03.png)
+
+## Links
+
+- [Documentation](https://hexdocs.pm/scenic_scrollable/Scenic.Scrollable.html)
+- [GitHub](https://github.com:nanaki04/scenic_scrollable.git)
+- [Scenic](https://hex.pm/packages/scenic)
+
+## Contributing
+
+Contributions are welcome. If there is anything you would like to improve or add, please open a ticket in the GitHub repository and we can discuss how to proceed.
+
+### Setting up a production environment
+
+Make sure you have the necessary dependencies to run [Scenic](https://hex.pm/packages/scenic).
+Clone the [Scenic Scrollable](https://github.com:nanaki04/scenic_scrollable.git) repository.
+Download all dependencies: `$ mix deps.get`.
+You can run the demo scene to see any of the changes or additions you have made in action:
+
+```
+$ iex -S mix
+```
+
+You can adjust the demo scene to your needs. It is located at: `lib/scenes/demo.ex`
+
+### Submitting a pull request
+
+Before submitting a pull request please do the following checks:
+
+- The demo is not broken `$ iex -S mix`
+- Dialyzer is happy `$ mix dialyzer`
+- All tests are green `$ mix test`
