@@ -1,15 +1,21 @@
 defmodule Scenic.Scrollable.MixProject do
   use Mix.Project
 
+  @github "https://github.com:nanaki04/scenic_scrollable.git"
+
   def project do
     [
       app: :scenic_scrollable,
       version: "0.1.0",
+      description: "Scrollable component for the Scenic library",
       elixir: "~> 1.7",
       build_embedded: true,
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      docs: [extras: ["README.md"]]
+      name: "Scenic Scrollable",
+      source_url: @github,
+      docs: [extras: ["README.md"]],
+      package: package()
     ]
   end
 
@@ -30,6 +36,14 @@ defmodule Scenic.Scrollable.MixProject do
       {:option_ex, "~> 0.2"},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
       {:ex_doc, "~> 0.16", only: [:dev], runtime: false}
+    ]
+  end
+
+  defp package do
+    [
+      licences: ["MIT"],
+      maintainers: ["Robert Jan Zwetsloot"],
+      links: %{github: @github}
     ]
   end
 end

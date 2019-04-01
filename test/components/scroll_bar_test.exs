@@ -97,7 +97,7 @@ defmodule Scenic.Scrollable.ScrollBarTest do
     assert :horizontal == state.direction
 
     assert %Scenic.Scrollable.Drag{
-      enabled_buttons: [:left, :right, :middle],
+             enabled_buttons: [:left, :right, :middle],
              drag_state: :idle,
              drag_start_content_position: :none,
              drag_start: :none,
