@@ -117,7 +117,7 @@ Contributions are welcome. If there is anything you would like to improve or add
 ### Setting up a production environment
 
 Make sure you have the necessary dependencies to run [Scenic](https://hex.pm/packages/scenic).
-Clone the [Scenic Scrollable](https://github.com:nanaki04/scenic_scrollable.git) repository.
+Clone the [Scenic Scrollable](https://github.com/nanaki04/scenic_scrollable) repository.
 Download all dependencies: `$ mix deps.get`.
 You can run the demo scene to see any of the changes or additions you have made in action:
 

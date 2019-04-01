@@ -1,7 +1,7 @@
 defmodule Scenic.Scrollable.MixProject do
   use Mix.Project
 
-  @github "https://github.com:nanaki04/scenic_scrollable.git"
+  @github "https://github.com/nanaki04/scenic_scrollable"
 
   def project do
     [
