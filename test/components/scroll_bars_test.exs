@@ -106,9 +106,15 @@ defmodule Scenic.Scrollable.ScrollBarsTest do
     assert ScrollBars.verify(%{}) == :invalid_input
     assert ScrollBars.verify(%{content_size: {1, 1}}) == :invalid_input
     assert ScrollBars.verify(%{scroll_position: {1, 1}}) == :invalid_input
-    assert ScrollBars.verify(%{content_size: {1, 1}, scroll_position: {1, 1}}) == {:ok, %{content_size: {1, 1}, scroll_position: {1, 1}}}
-    assert ScrollBars.verify(%{content_size: {"1", "1"}, scroll_position: {1, 1}}) == :invalid_input
-    assert ScrollBars.verify(%{content_size: {1, 1}, scroll_position: {"1", "1"}}) == :invalid_input
+
+    assert ScrollBars.verify(%{content_size: {1, 1}, scroll_position: {1, 1}}) ==
+             {:ok, %{content_size: {1, 1}, scroll_position: {1, 1}}}
+
+    assert ScrollBars.verify(%{content_size: {"1", "1"}, scroll_position: {1, 1}}) ==
+             :invalid_input
+
+    assert ScrollBars.verify(%{content_size: {1, 1}, scroll_position: {"1", "1"}}) ==
+             :invalid_input
   end
 
   test "default direction", %{start: start, stop: stop} do
@@ -161,13 +167,19 @@ defmodule Scenic.Scrollable.ScrollBarsTest do
     {:ok, {pid, state}} = start.(:case_2)
     {:some, horizontal_scroll_bar_pid} = state.horizontal_scroll_bar_pid
 
-    ScrollBar.simulate_left_button_press(horizontal_scroll_bar_pid, {0, 0}, :scroll_bar_slider_drag_control)
+    ScrollBar.simulate_left_button_press(
+      horizontal_scroll_bar_pid,
+      {0, 0},
+      :scroll_bar_slider_drag_control
+    )
+
     ScrollBar.simulate_mouse_move(horizontal_scroll_bar_pid, {1, 0}, :input_capture)
 
-    assert {:ok, true} = wait_until_true(fn ->
-      {:ok, {_pid, state}} = ScrollBars.inspect(pid)
-      ScrollBars.dragging?(state)
-    end)
+    assert {:ok, true} =
+             wait_until_true(fn ->
+               {:ok, {_pid, state}} = ScrollBars.inspect(pid)
+               ScrollBars.dragging?(state)
+             end)
 
     stop.(pid)
   end
@@ -186,15 +198,22 @@ defmodule Scenic.Scrollable.ScrollBarsTest do
     assert ScrollBars.new_position(state) == {:some, {50, 25}}
 
     {:some, horizontal_scroll_bar_pid} = state.horizontal_scroll_bar_pid
-    ScrollBar.simulate_left_button_press(horizontal_scroll_bar_pid, {0, 0}, :scroll_bar_slider_drag_control)
+
+    ScrollBar.simulate_left_button_press(
+      horizontal_scroll_bar_pid,
+      {0, 0},
+      :scroll_bar_slider_drag_control
+    )
+
     ScrollBar.simulate_mouse_move(horizontal_scroll_bar_pid, {2, 0}, :input_capture)
 
-    assert {:ok, true} = wait_until_true(fn ->
-      {:ok, {_pid, state}} = ScrollBars.inspect(pid)
-      {:some, {x, y}} = ScrollBars.new_position(state)
+    assert {:ok, true} =
+             wait_until_true(fn ->
+               {:ok, {_pid, state}} = ScrollBars.inspect(pid)
+               {:some, {x, y}} = ScrollBars.new_position(state)
 
-      x > -3.6 && x < -3.4 && y == 25
-    end)
+               x > -3.6 && x < -3.4 && y == 25
+             end)
 
     stop.(pid)
   end
@@ -216,12 +235,13 @@ defmodule Scenic.Scrollable.ScrollBarsTest do
     case {assertion.(), time_passed < timeout} do
       {true, _} ->
         {:ok, true}
+
       {_, false} ->
         {:error, :timeout}
+
       _ ->
         :timer.sleep(100)
         wait_until_true(assertion, time_passed + 100, timeout)
     end
   end
-
 end

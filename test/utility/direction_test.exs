@@ -15,20 +15,28 @@ defmodule Scenic.Scrollable.DirectionTest do
 
   test "as_vertical" do
     assert Scenic.Scrollable.Direction.as_vertical(5) == {:vertical, 5}
-    assert Scenic.Scrollable.Direction.as_vertical(:non_numeric_value) == {:vertical, :non_numeric_value}
+
+    assert Scenic.Scrollable.Direction.as_vertical(:non_numeric_value) ==
+             {:vertical, :non_numeric_value}
   end
 
   test "to_vector_2" do
-    v2 = Direction.as_horizontal(5)
-         |> Direction.to_vector_2
+    v2 =
+      Direction.as_horizontal(5)
+      |> Direction.to_vector_2()
+
     assert v2 == {5, 0}
 
-    v2 = Direction.as_vertical(5)
-         |> Direction.to_vector_2
+    v2 =
+      Direction.as_vertical(5)
+      |> Direction.to_vector_2()
+
     assert v2 == {0, 5}
 
-    v2 = Direction.as_horizontal(:non_numeric_value)
-         |> Direction.to_vector_2
+    v2 =
+      Direction.as_horizontal(:non_numeric_value)
+      |> Direction.to_vector_2()
+
     assert v2 == {0, 0}
   end
 
@@ -115,17 +123,17 @@ defmodule Scenic.Scrollable.DirectionTest do
   end
 
   test "map_horizontal" do
-    assert Direction.map_horizontal({:horizontal, 5}, & &1 * 2) == {:horizontal, 10}
-    assert Direction.map_horizontal({:vertical, 5}, & &1 * 2) == {:vertical, 5}
+    assert Direction.map_horizontal({:horizontal, 5}, &(&1 * 2)) == {:horizontal, 10}
+    assert Direction.map_horizontal({:vertical, 5}, &(&1 * 2)) == {:vertical, 5}
   end
 
   test "map_vertical" do
-    assert Direction.map_vertical({:vertical, 5.5}, & &1 * 2) == {:vertical, 11}
-    assert Direction.map_vertical({:horizontal, 5}, & &1 * 2) == {:horizontal, 5}
+    assert Direction.map_vertical({:vertical, 5.5}, &(&1 * 2)) == {:vertical, 11}
+    assert Direction.map_vertical({:horizontal, 5}, &(&1 * 2)) == {:horizontal, 5}
   end
 
   test "map" do
-    assert Direction.map({:horizontal, 5}, & &1 * 2) == {:horizontal, 10}
-    assert Direction.map({:vertical, 5}, & &1 * 2) == {:vertical, 10}
+    assert Direction.map({:horizontal, 5}, &(&1 * 2)) == {:horizontal, 10}
+    assert Direction.map({:vertical, 5}, &(&1 * 2)) == {:vertical, 10}
   end
 end

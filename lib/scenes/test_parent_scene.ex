@@ -1,17 +1,18 @@
 if Mix.env() == :test do
-
   defmodule Scenic.Scrollable.TestParentScene do
     use Scenic.Scene
     use Scenic.Scrollable.SceneInspector, env: [:test]
     alias Scenic.Graph
 
     defstruct graph: Graph.build(),
-      pid: nil,
-      events: %{}
+              pid: nil,
+              events: %{}
 
     def init(_, _) do
-      state = %__MODULE__{pid: self()}
-              |> Map.update!(:graph, &push_graph/1)
+      state =
+        %__MODULE__{pid: self()}
+        |> Map.update!(:graph, &push_graph/1)
+
       {:ok, state}
     end
 
@@ -51,5 +52,4 @@ if Mix.env() == :test do
       {:stop, %{state | events: Map.put(state.events, elem(event, 0), event)}}
     end
   end
-
 end

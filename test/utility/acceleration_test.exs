@@ -56,7 +56,9 @@ defmodule Scenic.Scrollable.AccelerationTest do
     state = Acceleration.apply_counter_pressure(%{default | speed: {10, 10}})
     assert state.speed == {9, 9}
 
-    state = Acceleration.apply_counter_pressure(%{default | speed: {10, 10}, counter_pressure: 0.2})
+    state =
+      Acceleration.apply_counter_pressure(%{default | speed: {10, 10}, counter_pressure: 0.2})
+
     assert state.speed == {8, 8}
 
     state = Acceleration.apply_counter_pressure(%{default | speed: {10, 10}, mass: 2})

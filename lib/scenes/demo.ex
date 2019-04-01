@@ -18,6 +18,7 @@ defmodule Scenic.Scrollable.Scene.Demo do
       %{frame: {500, 500}, content: %{x: 0, y: 15, width: 1200, height: 2200}},
       fn graph ->
         {:ok, text} = File.read("README.md")
+
         button(graph, "ok", translate: {25, 10})
         |> text(text, translate: {10, 125})
       end,

@@ -149,7 +149,7 @@ defmodule Scenic.Scrollable.ScrollBar do
           | {:scroll_bar_radius, number}
           | {:scroll_bar_border, number}
           | {:scroll_drag, Drag.settings()}
-          # TODO enable images as buttons
+  # TODO enable images as buttons
 
   @typedoc """
   A collection of optional styles with which the scroll bar component can be customized. See `t:Scenic.Scrollable.ScrollBar.style/0` and this modules top section for more information.

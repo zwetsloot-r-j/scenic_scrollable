@@ -36,20 +36,22 @@ defmodule Scenic.Scrollable.DragTest do
   test "new_position", %{default: default} do
     assert Drag.new_position(default) == :none
 
-    state = %{default |
-      drag_state: :dragging,
-      drag_start_content_position: {:some, {0, 0}},
-      drag_start: {:some, {0, 0}},
-      current: {:some, {0, 0}}
+    state = %{
+      default
+      | drag_state: :dragging,
+        drag_start_content_position: {:some, {0, 0}},
+        drag_start: {:some, {0, 0}},
+        current: {:some, {0, 0}}
     }
 
     assert Drag.new_position(state) == {:some, {0, 0}}
 
-    state = %{default |
-      drag_state: :dragging,
-      drag_start_content_position: {:some, {1, 2}},
-      drag_start: {:some, {2, 3}},
-      current: {:some, {3, 4}}
+    state = %{
+      default
+      | drag_state: :dragging,
+        drag_start_content_position: {:some, {1, 2}},
+        drag_start: {:some, {2, 3}},
+        current: {:some, {3, 4}}
     }
 
     assert Drag.new_position(state) == {:some, {2, 3}}
@@ -58,48 +60,45 @@ defmodule Scenic.Scrollable.DragTest do
   test "last_position", %{default: default} do
     assert Drag.last_position(default) == :none
     assert Drag.last_position(%{default | current: {:some, {0, 0}}}) == {:some, {0, 0}}
-    assert Drag.last_position(%{default | current: {:some, {324645, 3456}}}) == {:some, {324645, 3456}}
+
+    assert Drag.last_position(%{default | current: {:some, {324_645, 3456}}}) ==
+             {:some, {324_645, 3456}}
   end
 
   test "handle_mouse_click", %{default: default} do
     assert Drag.handle_mouse_click(default, :left, {0, 0}, {0, 0}) == default
 
-    state = %{default |
-      enabled_buttons: [:left]
-    }
+    state = %{default | enabled_buttons: [:left]}
 
-    assert Drag.handle_mouse_click(state, :left, {1, 1}, {2, 2}) == %{state |
-      drag_state: :dragging,
-      drag_start_content_position: {:some, {2, 2}},
-      drag_start: {:some, {1, 1}},
-      current: {:some, {1, 1}}
-    }
+    assert Drag.handle_mouse_click(state, :left, {1, 1}, {2, 2}) == %{
+             state
+             | drag_state: :dragging,
+               drag_start_content_position: {:some, {2, 2}},
+               drag_start: {:some, {1, 1}},
+               current: {:some, {1, 1}}
+           }
 
-    state = %{default |
-      enabled_buttons: [:left, :right]
-    }
+    state = %{default | enabled_buttons: [:left, :right]}
 
-    assert Drag.handle_mouse_click(state, :right, {1, 1}, {2, 2}) == %{state |
-      drag_state: :dragging,
-      drag_start_content_position: {:some, {2, 2}},
-      drag_start: {:some, {1, 1}},
-      current: {:some, {1, 1}}
-    }
+    assert Drag.handle_mouse_click(state, :right, {1, 1}, {2, 2}) == %{
+             state
+             | drag_state: :dragging,
+               drag_start_content_position: {:some, {2, 2}},
+               drag_start: {:some, {1, 1}},
+               current: {:some, {1, 1}}
+           }
 
-    state = %{default |
-      enabled_buttons: [:middle, :right]
-    }
+    state = %{default | enabled_buttons: [:middle, :right]}
 
-    assert Drag.handle_mouse_click(state, :middle, {1, 1}, {2, 2}) == %{state |
-      drag_state: :dragging,
-      drag_start_content_position: {:some, {2, 2}},
-      drag_start: {:some, {1, 1}},
-      current: {:some, {1, 1}}
-    }
+    assert Drag.handle_mouse_click(state, :middle, {1, 1}, {2, 2}) == %{
+             state
+             | drag_state: :dragging,
+               drag_start_content_position: {:some, {2, 2}},
+               drag_start: {:some, {1, 1}},
+               current: {:some, {1, 1}}
+           }
 
-    state = %{default |
-      enabled_buttons: [:middle, :right]
-    }
+    state = %{default | enabled_buttons: [:middle, :right]}
 
     assert Drag.handle_mouse_click(state, :left, {1, 1}, {2, 2}) == state
   end
@@ -116,10 +115,12 @@ defmodule Scenic.Scrollable.DragTest do
 
     state = %{default | enabled_buttons: [:left]}
     state = Drag.handle_mouse_click(state, :left, {1, 1}, {2, 2})
-    assert Drag.handle_mouse_release(state, :left, {3, 3}) == %{state |
-      drag_state: :idle,
-      current: :none
-    }
+
+    assert Drag.handle_mouse_release(state, :left, {3, 3}) == %{
+             state
+             | drag_state: :idle,
+               current: :none
+           }
   end
 
   test "amplify_speed", %{default: default} do

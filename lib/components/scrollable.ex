@@ -234,7 +234,8 @@ defmodule Scenic.Scrollable do
           | {:vertical_scroll_bar, Scenic.Scrollable.ScrollBar.styles()}
           | {:translate, v2}
           | {:id, term}
-          | {atom, term} # enable any input to be passed to the content
+          # enable any input to be passed to the content
+          | {atom, term}
   # TODO bounce
 
   @typedoc """
@@ -277,7 +278,7 @@ defmodule Scenic.Scrollable do
           hotkeys: Hotkeys.t(),
           position_caps: PositionCap.t(),
           focused: boolean,
-          animating: boolean,
+          animating: boolean
         }
 
   defstruct id: :scrollable,
@@ -513,10 +514,11 @@ defmodule Scenic.Scrollable do
       graph,
       fn graph ->
         graph
-        |> group(builder,
-                 Enum.into(styles, [])
-                 |> Keyword.put(:id, :content)
-                 |> Keyword.put(:translate, Vector2.add(state.scroll_position, {content.x, content.y}))
+        |> group(
+          builder,
+          Enum.into(styles, [])
+          |> Keyword.put(:id, :content)
+          |> Keyword.put(:translate, Vector2.add(state.scroll_position, {content.x, content.y}))
         )
       end,
       scissor: {frame.width, frame.height},
@@ -541,6 +543,7 @@ defmodule Scenic.Scrollable do
     max = {x, y}
 
     position_cap = PositionCap.init(%{min: min, max: max})
+
     Map.put(state, :position_caps, position_cap)
     |> Map.update(:scroll_position, {0, 0}, &PositionCap.cap(position_cap, &1))
   end
@@ -564,6 +567,7 @@ defmodule Scenic.Scrollable do
     # TODO refactor?
     # MEMO due to performance issues, I am directly calling to the scroll bars, rather than modifying the graph. There might be a cleaner way to do this.
     pos = Vector2.sub(state.scroll_position, {state.content.x, state.content.y})
+
     OptionEx.map(state.scroll_bars, & &1.pid)
     |> OptionEx.map(&GenServer.call(&1, {:update_scroll_position, pos}))
 

@@ -44,7 +44,7 @@ defmodule Scenic.ScrollableTest do
         scroll_acceleration: %{
           acceleration: 12,
           mass: 1.1,
-          counter_pressure: 0.2,
+          counter_pressure: 0.2
         },
         scroll_hotkeys: %{
           up: "w",
@@ -65,7 +65,14 @@ defmodule Scenic.ScrollableTest do
     start = fn case_number ->
       {:ok, {parent_pid, _}} = TestParentScene.inspect()
 
-      graph = Components.scrollable(graph, settings[case_number], builders[case_number], styles[case_number])
+      graph =
+        Components.scrollable(
+          graph,
+          settings[case_number],
+          builders[case_number],
+          styles[case_number]
+        )
+
       TestParentScene.set_graph(parent_pid, graph)
       Scrollable.inspect_until_found()
     end
@@ -88,12 +95,19 @@ defmodule Scenic.ScrollableTest do
     assert Scrollable.verify(%{content: %{}}) == :invalid_input
     assert Scrollable.verify(%{content: {1, 2}}) == :invalid_input
     assert Scrollable.verify(%{content: {1, 2}, frame: {3, 4}}) == :invalid_input
-    assert Scrollable.verify(%{content: %{x: 1, y: 2, width: 3, height: 4}, frame: {3, 4}}) == :invalid_input
+
+    assert Scrollable.verify(%{content: %{x: 1, y: 2, width: 3, height: 4}, frame: {3, 4}}) ==
+             :invalid_input
 
     settings = %{content: {1, 2}, frame: {3, 4}, builder: fn -> :ok end}
     assert Scrollable.verify(settings) == {:ok, settings}
 
-    settings = %{content: %{x: 1, y: 2, width: 3, height: 4}, frame: {3, 4}, builder: fn -> :ok end}
+    settings = %{
+      content: %{x: 1, y: 2, width: 3, height: 4},
+      frame: {3, 4},
+      builder: fn -> :ok end
+    }
+
     assert Scrollable.verify(settings) == {:ok, settings}
   end
 
@@ -106,38 +120,43 @@ defmodule Scenic.ScrollableTest do
     assert %{x: 0, y: 0, width: 400, height: 600} == state.content
     assert {0, 0} == state.scroll_position
     assert 30 == state.fps
+
     assert %Acceleration{
-      acceleration: 20,
-      mass: 1,
-      counter_pressure: 0.1,
-      force: {0, 0},
-      speed: {0, 0}
-    } == state.acceleration
+             acceleration: 20,
+             mass: 1,
+             counter_pressure: 0.1,
+             force: {0, 0},
+             speed: {0, 0}
+           } == state.acceleration
+
     assert %Hotkeys{
-      key_map: %{
-        up: :none,
-        down: :none,
-        left: :none,
-        right: :none
-      },
-      key_pressed_states: %{
-        up: :released,
-        down: :released,
-        left: :released,
-        right: :released
-      }
-    } == state.hotkeys
+             key_map: %{
+               up: :none,
+               down: :none,
+               left: :none,
+               right: :none
+             },
+             key_pressed_states: %{
+               up: :released,
+               down: :released,
+               left: :released,
+               right: :released
+             }
+           } == state.hotkeys
+
     assert %Drag{
-      enabled_buttons: [],
-      drag_state: :idle,
-      drag_start_content_position: :none,
-      drag_start: :none,
-      current: :none
-    } == state.drag_state
+             enabled_buttons: [],
+             drag_state: :idle,
+             drag_start_content_position: :none,
+             drag_start: :none,
+             current: :none
+           } == state.drag_state
+
     assert %PositionCap{
-      min: {:some, {-300, -400}},
-      max: {:some, {0, 0}}
-    } == state.position_caps
+             min: {:some, {-300, -400}},
+             max: {:some, {0, 0}}
+           } == state.position_caps
+
     assert not state.focused
     assert not state.animating
     assert :none == state.scroll_bars
@@ -154,49 +173,56 @@ defmodule Scenic.ScrollableTest do
     assert %{x: 12.34, y: 45.67, width: 123.45, height: 678.9} == state.content
     assert {11.34, 43.67} == state.scroll_position
     assert 60 == state.fps
+
     assert %Acceleration{
-      acceleration: 12,
-      mass: 1.1,
-      counter_pressure: 0.2,
-      force: {0, 0},
-      speed: {0, 0}
-    } == state.acceleration
+             acceleration: 12,
+             mass: 1.1,
+             counter_pressure: 0.2,
+             force: {0, 0},
+             speed: {0, 0}
+           } == state.acceleration
+
     assert %Hotkeys{
-      key_map: %{
-        up: {:some, "W"},
-        down: {:some, "S"},
-        left: {:some, "A"},
-        right: {:some, "D"},
-      },
-      key_pressed_states: %{
-        up: :released,
-        down: :released,
-        left: :released,
-        right: :released
-      }
-    } == state.hotkeys
+             key_map: %{
+               up: {:some, "W"},
+               down: {:some, "S"},
+               left: {:some, "A"},
+               right: {:some, "D"}
+             },
+             key_pressed_states: %{
+               up: :released,
+               down: :released,
+               left: :released,
+               right: :released
+             }
+           } == state.hotkeys
+
     assert %Drag{
-      enabled_buttons: [:left, :middle, :right],
-      drag_state: :idle,
-      drag_start_content_position: :none,
-      drag_start: :none,
-      current: :none
-    } == state.drag_state
+             enabled_buttons: [:left, :middle, :right],
+             drag_state: :idle,
+             drag_start_content_position: :none,
+             drag_start: :none,
+             current: :none
+           } == state.drag_state
+
     %PositionCap{
       min: {:some, {min_x, min_y}},
       max: {:some, max}
     } = state.position_caps
+
     assert_in_delta min_x, -61, 0.1
     assert_in_delta min_y, -572.91, 0.1
     assert {12.34, 45.67} == max
     assert not state.focused
     assert not state.animating
-    assert {:ok, true} = wait_until_true(fn ->
-      case state.scroll_bars do
-        {:some, %ScrollBars{}} -> true
-        _ -> false
-      end
-    end)
+
+    assert {:ok, true} =
+             wait_until_true(fn ->
+               case state.scroll_bars do
+                 {:some, %ScrollBars{}} -> true
+                 _ -> false
+               end
+             end)
 
     stop.(pid)
   end
@@ -271,11 +297,12 @@ defmodule Scenic.ScrollableTest do
 
     Scrollable.simulate_key_press(pid, "W", :input_capture)
 
-    assert {:ok, true} = wait_until_true(fn ->
-      {:ok, {_pid, state}} = Scrollable.inspect(pid)
-      {new_x, new_y} = get_content_translation(state)
-      new_x == content_translation_x && new_y > content_translation_y
-    end)
+    assert {:ok, true} =
+             wait_until_true(fn ->
+               {:ok, {_pid, state}} = Scrollable.inspect(pid)
+               {new_x, new_y} = get_content_translation(state)
+               new_x == content_translation_x && new_y > content_translation_y
+             end)
 
     Scrollable.simulate_key_release(pid, "W", :input_capture)
 
@@ -288,11 +315,12 @@ defmodule Scenic.ScrollableTest do
 
     Scrollable.simulate_key_press(pid, "S", :input_capture)
 
-    assert {:ok, true} = wait_until_true(fn ->
-      {:ok, {_pid, state}} = Scrollable.inspect(pid)
-      {new_x, new_y} = get_content_translation(state)
-      new_x == content_translation_x && new_y < content_translation_y
-    end)
+    assert {:ok, true} =
+             wait_until_true(fn ->
+               {:ok, {_pid, state}} = Scrollable.inspect(pid)
+               {new_x, new_y} = get_content_translation(state)
+               new_x == content_translation_x && new_y < content_translation_y
+             end)
 
     Scrollable.simulate_key_release(pid, "S", :input_capture)
 
@@ -305,11 +333,12 @@ defmodule Scenic.ScrollableTest do
 
     Scrollable.simulate_key_press(pid, "A", :input_capture)
 
-    assert {:ok, true} = wait_until_true(fn ->
-      {:ok, {_pid, state}} = Scrollable.inspect(pid)
-      {new_x, new_y} = get_content_translation(state)
-      new_x < content_translation_x && new_y == content_translation_y
-    end)
+    assert {:ok, true} =
+             wait_until_true(fn ->
+               {:ok, {_pid, state}} = Scrollable.inspect(pid)
+               {new_x, new_y} = get_content_translation(state)
+               new_x < content_translation_x && new_y == content_translation_y
+             end)
 
     Scrollable.simulate_key_release(pid, "A", :input_capture)
 
@@ -322,11 +351,12 @@ defmodule Scenic.ScrollableTest do
 
     Scrollable.simulate_key_press(pid, "D", :input_capture)
 
-    assert {:ok, true} = wait_until_true(fn ->
-      {:ok, {_pid, state}} = Scrollable.inspect(pid)
-      {new_x, new_y} = get_content_translation(state)
-      new_x > content_translation_x && new_y == content_translation_y
-    end)
+    assert {:ok, true} =
+             wait_until_true(fn ->
+               {:ok, {_pid, state}} = Scrollable.inspect(pid)
+               {new_x, new_y} = get_content_translation(state)
+               new_x > content_translation_x && new_y == content_translation_y
+             end)
 
     Scrollable.simulate_key_release(pid, "D", :input_capture)
 
@@ -340,11 +370,12 @@ defmodule Scenic.ScrollableTest do
     Scrollable.simulate_key_press(pid, "W", :input_capture)
     Scrollable.simulate_key_press(pid, "D", :input_capture)
 
-    assert {:ok, true} = wait_until_true(fn ->
-      {:ok, {_pid, state}} = Scrollable.inspect(pid)
-      {new_x, new_y} = get_content_translation(state)
-      new_x > content_translation_x && new_y > content_translation_y
-    end)
+    assert {:ok, true} =
+             wait_until_true(fn ->
+               {:ok, {_pid, state}} = Scrollable.inspect(pid)
+               {new_x, new_y} = get_content_translation(state)
+               new_x > content_translation_x && new_y > content_translation_y
+             end)
 
     Scrollable.simulate_key_release(pid, "W", :input_capture)
     Scrollable.simulate_key_release(pid, "D", :input_capture)
@@ -359,11 +390,12 @@ defmodule Scenic.ScrollableTest do
     Scrollable.simulate_key_press(pid, "S", :input_capture)
     Scrollable.simulate_key_press(pid, "A", :input_capture)
 
-    assert {:ok, true} = wait_until_true(fn ->
-      {:ok, {_pid, state}} = Scrollable.inspect(pid)
-      {new_x, new_y} = get_content_translation(state)
-      new_x < content_translation_x && new_y < content_translation_y
-    end)
+    assert {:ok, true} =
+             wait_until_true(fn ->
+               {:ok, {_pid, state}} = Scrollable.inspect(pid)
+               {new_x, new_y} = get_content_translation(state)
+               new_x < content_translation_x && new_y < content_translation_y
+             end)
 
     Scrollable.simulate_key_release(pid, "S", :input_capture)
     Scrollable.simulate_key_release(pid, "A", :input_capture)
@@ -379,10 +411,11 @@ defmodule Scenic.ScrollableTest do
 
     # MEMO there will be a slight movement lingering from the first button press
     # this is hardly noticable in practice, so I will have the test go along with it
-    assert {:ok, true} = wait_until_true(fn ->
-      {:ok, {_pid, state}} = Scrollable.inspect(pid)
-      state.scrolling == :idle
-    end)
+    assert {:ok, true} =
+             wait_until_true(fn ->
+               {:ok, {_pid, state}} = Scrollable.inspect(pid)
+               state.scrolling == :idle
+             end)
 
     {:ok, {pid, state}} = Scrollable.inspect(pid)
     content_translation = get_content_translation(state)
@@ -411,10 +444,11 @@ defmodule Scenic.ScrollableTest do
     content_translation = get_content_translation(state)
 
     # assert the content is still moving
-    assert {:ok, true} = wait_until_true(fn ->
-      {:ok, {_pid, state}} = Scrollable.inspect(pid)
-      content_translation != get_content_translation(state)
-    end)
+    assert {:ok, true} =
+             wait_until_true(fn ->
+               {:ok, {_pid, state}} = Scrollable.inspect(pid)
+               content_translation != get_content_translation(state)
+             end)
 
     stop.(pid)
   end
@@ -432,12 +466,13 @@ defmodule Scenic.ScrollableTest do
     case {assertion.(), time_passed < timeout} do
       {true, _} ->
         {:ok, true}
+
       {_, false} ->
         {:error, :timeout}
+
       _ ->
         :timer.sleep(100)
         wait_until_true(assertion, time_passed + 100, timeout)
     end
   end
-
 end

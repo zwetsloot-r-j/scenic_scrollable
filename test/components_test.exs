@@ -128,88 +128,135 @@ defmodule Scenic.Scrollable.ComponentsTest do
     |> Map.put(:builder, builder)
   end
 
-  test "scrollable add case 1", %{graph: graph, settings: %{scrollable: settings}, styles: %{scrollable: styles}, builder: builder} do
-    primitive = Components.scrollable(graph, settings.case_1, builder, styles.case_1)
-                |> Graph.get!(:test_scrollable_case_1)
+  test "scrollable add case 1", %{
+    graph: graph,
+    settings: %{scrollable: settings},
+    styles: %{scrollable: styles},
+    builder: builder
+  } do
+    primitive =
+      Components.scrollable(graph, settings.case_1, builder, styles.case_1)
+      |> Graph.get!(:test_scrollable_case_1)
 
     assert primitive.module == Scenic.Primitive.SceneRef
     assert primitive.data == {Scenic.Scrollable, Map.put(settings.case_1, :builder, builder)}
     assert primitive.id == :test_scrollable_case_1
   end
 
-  test "scrollable add case 2", %{graph: graph, settings: %{scrollable: settings}, styles: %{scrollable: styles}, builder: builder} do
-    primitive = Components.scrollable(graph, settings.case_2, builder, styles.case_2)
-                |> Graph.get!(:test_scrollable_case_2)
+  test "scrollable add case 2", %{
+    graph: graph,
+    settings: %{scrollable: settings},
+    styles: %{scrollable: styles},
+    builder: builder
+  } do
+    primitive =
+      Components.scrollable(graph, settings.case_2, builder, styles.case_2)
+      |> Graph.get!(:test_scrollable_case_2)
 
     assert primitive.module == Scenic.Primitive.SceneRef
     assert primitive.data == {Scenic.Scrollable, Map.put(settings.case_2, :builder, builder)}
     assert primitive.id == :test_scrollable_case_2
   end
 
-  test "scrollable modify", %{graph: graph, settings: %{scrollable: settings}, styles: %{scrollable: styles}, builder: builder} do
-    primitive = Components.scrollable(graph, settings.case_1, builder, styles.case_1)
-                |> Graph.get!(:test_scrollable_case_1)
-                |> Components.scrollable(settings.case_2, builder, id: :modified_scrollable)
+  test "scrollable modify", %{
+    graph: graph,
+    settings: %{scrollable: settings},
+    styles: %{scrollable: styles},
+    builder: builder
+  } do
+    primitive =
+      Components.scrollable(graph, settings.case_1, builder, styles.case_1)
+      |> Graph.get!(:test_scrollable_case_1)
+      |> Components.scrollable(settings.case_2, builder, id: :modified_scrollable)
 
     assert primitive.module == Scenic.Primitive.SceneRef
     assert primitive.data == {Scenic.Scrollable, Map.put(settings.case_2, :builder, builder)}
     assert primitive.id == :modified_scrollable
   end
 
-  test "scroll_bars add case 1", %{graph: graph, settings: %{scroll_bars: settings}, styles: %{scroll_bars: styles}} do
-    primitive = Components.scroll_bars(graph, settings.case_1, styles.case_1)
-                |> Graph.get!(:test_scroll_bars_case_1)
+  test "scroll_bars add case 1", %{
+    graph: graph,
+    settings: %{scroll_bars: settings},
+    styles: %{scroll_bars: styles}
+  } do
+    primitive =
+      Components.scroll_bars(graph, settings.case_1, styles.case_1)
+      |> Graph.get!(:test_scroll_bars_case_1)
 
     assert primitive.module == Scenic.Primitive.SceneRef
     assert primitive.data == {Scenic.Scrollable.ScrollBars, settings.case_1}
     assert primitive.id == :test_scroll_bars_case_1
   end
 
-  test "scroll_bars add case 2", %{graph: graph, settings: %{scroll_bars: settings}, styles: %{scroll_bars: styles}} do
-    primitive = Components.scroll_bars(graph, settings.case_2, styles.case_2)
-                |> Graph.get!(:test_scroll_bars_case_2)
+  test "scroll_bars add case 2", %{
+    graph: graph,
+    settings: %{scroll_bars: settings},
+    styles: %{scroll_bars: styles}
+  } do
+    primitive =
+      Components.scroll_bars(graph, settings.case_2, styles.case_2)
+      |> Graph.get!(:test_scroll_bars_case_2)
 
     assert primitive.module == Scenic.Primitive.SceneRef
     assert primitive.data == {Scenic.Scrollable.ScrollBars, settings.case_2}
     assert primitive.id == :test_scroll_bars_case_2
   end
 
-  test "scroll_bars modify", %{graph: graph, settings: %{scroll_bars: settings}, styles: %{scroll_bars: styles}} do
-    primitive = Components.scroll_bars(graph, settings.case_1, styles.case_1)
-                |> Graph.get!(:test_scroll_bars_case_1)
-                |> Components.scroll_bars(settings.case_2, id: :modified_scroll_bars)
+  test "scroll_bars modify", %{
+    graph: graph,
+    settings: %{scroll_bars: settings},
+    styles: %{scroll_bars: styles}
+  } do
+    primitive =
+      Components.scroll_bars(graph, settings.case_1, styles.case_1)
+      |> Graph.get!(:test_scroll_bars_case_1)
+      |> Components.scroll_bars(settings.case_2, id: :modified_scroll_bars)
 
     assert primitive.module == Scenic.Primitive.SceneRef
     assert primitive.data == {Scenic.Scrollable.ScrollBars, settings.case_2}
     assert primitive.id == :modified_scroll_bars
   end
 
-  test "scroll_bar add case 1", %{graph: graph, settings: %{scroll_bar: settings}, styles: %{scroll_bar: styles}} do
-    primitive = Components.scroll_bar(graph, settings.case_1, styles.case_1)
-                |> Graph.get!(:test_scroll_bar_case_1)
+  test "scroll_bar add case 1", %{
+    graph: graph,
+    settings: %{scroll_bar: settings},
+    styles: %{scroll_bar: styles}
+  } do
+    primitive =
+      Components.scroll_bar(graph, settings.case_1, styles.case_1)
+      |> Graph.get!(:test_scroll_bar_case_1)
 
     assert primitive.module == Scenic.Primitive.SceneRef
     assert primitive.data == {Scenic.Scrollable.ScrollBar, settings.case_1}
     assert primitive.id == :test_scroll_bar_case_1
   end
 
-  test "scroll_bar add case 2", %{graph: graph, settings: %{scroll_bar: settings}, styles: %{scroll_bar: styles}} do
-    primitive = Components.scroll_bar(graph, settings.case_2, styles.case_2)
-                |> Graph.get!(:test_scroll_bar_case_2)
+  test "scroll_bar add case 2", %{
+    graph: graph,
+    settings: %{scroll_bar: settings},
+    styles: %{scroll_bar: styles}
+  } do
+    primitive =
+      Components.scroll_bar(graph, settings.case_2, styles.case_2)
+      |> Graph.get!(:test_scroll_bar_case_2)
 
     assert primitive.module == Scenic.Primitive.SceneRef
     assert primitive.data == {Scenic.Scrollable.ScrollBar, settings.case_2}
     assert primitive.id == :test_scroll_bar_case_2
   end
 
-  test "scroll_bar modify", %{graph: graph, settings: %{scroll_bar: settings}, styles: %{scroll_bar: styles}} do
-    primitive = Components.scroll_bar(graph, settings.case_1, styles.case_1)
-                |> Graph.get!(:test_scroll_bar_case_1)
-                |> Components.scroll_bar(settings.case_2, id: :modified_scroll_bar)
+  test "scroll_bar modify", %{
+    graph: graph,
+    settings: %{scroll_bar: settings},
+    styles: %{scroll_bar: styles}
+  } do
+    primitive =
+      Components.scroll_bar(graph, settings.case_1, styles.case_1)
+      |> Graph.get!(:test_scroll_bar_case_1)
+      |> Components.scroll_bar(settings.case_2, id: :modified_scroll_bar)
 
     assert primitive.module == Scenic.Primitive.SceneRef
     assert primitive.data == {Scenic.Scrollable.ScrollBar, settings.case_2}
     assert primitive.id == :modified_scroll_bar
   end
-
 end

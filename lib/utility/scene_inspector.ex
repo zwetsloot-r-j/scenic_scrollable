@@ -8,11 +8,11 @@ defmodule Scenic.Scrollable.SceneInspector do
       enabled = Enum.member?(unquote(opts)[:env] || [], Mix.env())
 
       if enabled do
-
         @doc false
         @spec inspect(pid) :: {:ok, {pid, term}} | {:error, :invalid_module}
         def inspect(pid) do
           module = __MODULE__
+
           case GenServer.call(pid, :inspect_state) do
             {pid, ^module, state} -> {:ok, {pid, state}}
             _ -> {:error, :invalid_module}
@@ -23,6 +23,7 @@ defmodule Scenic.Scrollable.SceneInspector do
         @spec inspect() :: {:ok, {pid, term}} | {:error, atom}
         def inspect() do
           module = __MODULE__
+
           :ets.match(Tables.scenes_table(), {:_, {:"$1", :_, :_}})
           |> Enum.map(fn
             [pid] -> GenServer.call(pid, :inspect_state)
@@ -37,9 +38,9 @@ defmodule Scenic.Scrollable.SceneInspector do
             _ -> false
           end)
           |> (fn
-            nil -> {:error, :scene_not_running}
-            ok -> ok
-          end).()
+                nil -> {:error, :scene_not_running}
+                ok -> ok
+              end).()
         end
 
         @doc false
@@ -48,12 +49,15 @@ defmodule Scenic.Scrollable.SceneInspector do
           case inspect() do
             {:ok, _} = ok ->
               ok
+
             {:error, :scene_not_running} ->
               Process.send_after(self(), :inspect_until_found, 100)
+
               receive do
                 :inspect_until_found -> inspect_until_found()
                 _ -> {:error, :unexpected_message}
               end
+
             error ->
               error
           end
@@ -68,31 +72,33 @@ defmodule Scenic.Scrollable.SceneInspector do
             _ -> false
           end)
           |> (fn
-            nil ->
-              :ok
-            _ ->
-              Process.send_after(self(), :wait_until_destroyed, 100)
-              receive do
-                :wait_until_destroyed -> wait_until_destroyed(pid)
-                _ -> {:error, :unexpected_message}
-              end
-          end).()
+                nil ->
+                  :ok
+
+                _ ->
+                  Process.send_after(self(), :wait_until_destroyed, 100)
+
+                  receive do
+                    :wait_until_destroyed -> wait_until_destroyed(pid)
+                    _ -> {:error, :unexpected_message}
+                  end
+              end).()
         end
 
         @doc false
-        @spec simulate_left_button_press(pid, Scenic.Math.vector_2, atom) :: :ok
+        @spec simulate_left_button_press(pid, Scenic.Math.vector_2(), atom) :: :ok
         def simulate_left_button_press(pid, position, origin_id) do
           simulate_input(pid, {:cursor_button, {:left, :press, 0, position}}, origin_id)
         end
 
         @doc false
-        @spec simulate_left_button_release(pid, Scenic.Math.vector_2, atom) :: :ok
+        @spec simulate_left_button_release(pid, Scenic.Math.vector_2(), atom) :: :ok
         def simulate_left_button_release(pid, position, origin_id) do
           simulate_input(pid, {:cursor_button, {:left, :release, 0, position}}, origin_id)
         end
 
         @doc false
-        @spec simulate_mouse_move(pid, Scenic.Math.vector_2, atom) :: :ok
+        @spec simulate_mouse_move(pid, Scenic.Math.vector_2(), atom) :: :ok
         def simulate_mouse_move(pid, position, origin_id) do
           simulate_input(pid, {:cursor_pos, position}, origin_id)
         end
@@ -104,13 +110,13 @@ defmodule Scenic.Scrollable.SceneInspector do
         end
 
         @doc false
-        @spec simulate_key_press(pid, String.t, atom) :: :ok
+        @spec simulate_key_press(pid, String.t(), atom) :: :ok
         def simulate_key_press(pid, key, origin_id) do
           simulate_input(pid, {:key, {key, :press, 0}}, origin_id)
         end
 
         @doc false
-        @spec simulate_key_release(pid, String.t, atom) :: :ok
+        @spec simulate_key_release(pid, String.t(), atom) :: :ok
         def simulate_key_release(pid, key, origin_id) do
           simulate_input(pid, {:key, {key, :press, 0}}, origin_id)
         end
@@ -123,9 +129,10 @@ defmodule Scenic.Scrollable.SceneInspector do
         end
 
         @doc false
-        @spec make_input_context(term, atom) :: Scenic.ViewPort.Context.t
+        @spec make_input_context(term, atom) :: Scenic.ViewPort.Context.t()
         defp make_input_context(event, origin_id) do
           viewport = get_viewport()
+
           Scenic.ViewPort.Context.build(%{
             viewport: viewport,
             graph_key: get_root_graph_key(viewport),
@@ -149,8 +156,8 @@ defmodule Scenic.Scrollable.SceneInspector do
         end
 
         @doc false
-        def handle_call(:inspect_state, _from, state), do: {:reply, {self(), __MODULE__, state}, state}
-
+        def handle_call(:inspect_state, _from, state),
+          do: {:reply, {self(), __MODULE__, state}, state}
       end
     end
   end
